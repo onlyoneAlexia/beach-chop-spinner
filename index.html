@@ -1,0 +1,1508 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beach Chop Spinner</title>
+<meta name="description" content="Spin for a name, spin for the food. One person, one thing, so nobody brings the same jollof to the beach.">
+<meta property="og:title" content="Beach Chop Spinner">
+<meta property="og:description" content="Add your name and spin to see what you're bringing to the beach.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#12688b">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%96%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Lilita+One&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Layout: sea-blue poster band with a scalloped edge, a three-part stage (names → pick → food), then the lineup board by menu section */
+    --bg: #e7f4f1;
+    --surface: #ffffff;
+    --surface-2: #d5ede8;
+    --ink: #0e3340;
+    --muted: #48666d;
+    --line: #c2dcd6;
+    --edge: #0e3340;
+    --hard: #0e3340;
+    --band: #12688b;
+    --on-band: #ffffff;
+    --on-band-muted: #d6edf5;
+    --accent: #ff6a3d;
+    --accent-text: #b8400f;
+    --on-accent: #2b0f05;
+    --sun: #ffc23d;
+    --mine: #fff0c4;
+    --danger: #b3261e;
+    --focus: #0f7fb0;
+    --scrim: rgba(6, 26, 34, 0.55);
+    --display: "Lilita One", "Arial Rounded MT Bold", "Trebuchet MS", sans-serif;
+    --body: "Figtree", "Segoe UI", system-ui, -apple-system, sans-serif;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #071d26;
+      --surface: #0d2b36;
+      --surface-2: #133a47;
+      --ink: #e6f2ef;
+      --muted: #9cbcc1;
+      --line: #21495a;
+      --edge: #6aa5b6;
+      --hard: #01090d;
+      --band: #0b3a4d;
+      --on-band: #ffffff;
+      --on-band-muted: #bfe0ec;
+      --accent: #ff7a50;
+      --accent-text: #ff9e7a;
+      --on-accent: #2b0f05;
+      --sun: #ffcb52;
+      --mine: #3a3216;
+      --danger: #ff8f80;
+      --focus: #7fd3f0;
+      --scrim: rgba(0, 0, 0, 0.62);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #071d26;
+    --surface: #0d2b36;
+    --surface-2: #133a47;
+    --ink: #e6f2ef;
+    --muted: #9cbcc1;
+    --line: #21495a;
+    --edge: #6aa5b6;
+    --hard: #01090d;
+    --band: #0b3a4d;
+    --on-band: #ffffff;
+    --on-band-muted: #bfe0ec;
+    --accent: #ff7a50;
+    --accent-text: #ff9e7a;
+    --on-accent: #2b0f05;
+    --sun: #ffcb52;
+    --mine: #3a3216;
+    --danger: #ff8f80;
+    --focus: #7fd3f0;
+    --scrim: rgba(0, 0, 0, 0.62);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  h1, h2, h3 { text-wrap: balance; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+  /* Poster band */
+  .hero { position: relative; background: var(--band); color: var(--on-band); padding-block: 26px 30px; margin-bottom: 14px; }
+  .hero::after { content: ""; position: absolute; left: 0; right: 0; top: 100%; height: 14px; background: radial-gradient(circle 14px at 50% 0, var(--band) 13.5px, transparent 14px) 0 0 / 28px 14px repeat-x; }
+  .hero-inner, .page { max-width: 1200px; margin-inline: auto; padding-inline: 16px; }
+  .hero-inner { position: relative; }
+  @media (min-width: 720px) { .hero-inner, .page { padding-inline: 28px; } }
+  .sun { position: absolute; right: 16px; top: -2px; width: clamp(60px, 12vw, 140px); aspect-ratio: 1; border-radius: 50%; background: var(--sun); box-shadow: 0 0 0 8px color-mix(in srgb, var(--sun) 30%, transparent), 0 0 0 18px color-mix(in srgb, var(--sun) 12%, transparent); }
+  @media (min-width: 720px) { .sun { right: 28px; } }
+  .kicker { margin: 0; padding-right: clamp(80px, 14vw, 170px); font-size: 12px; font-weight: 800; letter-spacing: 1.6px; text-transform: uppercase; color: var(--on-band-muted); }
+  h1 { position: relative; margin: 10px 0 12px; padding-right: clamp(70px, 13vw, 160px); font-family: var(--display); font-weight: 400; font-size: clamp(44px, 9vw, 92px); line-height: 0.92; letter-spacing: 0.5px; text-shadow: 0 3px 0 rgba(0, 0, 0, 0.18); }
+  h1 .hl { color: var(--sun); }
+  .tagline { max-width: 56ch; margin: 0; font-size: 17px; color: var(--on-band-muted); }
+  .meter { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 20px; }
+  .meter-track { flex: 1 1 200px; max-width: 420px; height: 16px; border-radius: 999px; overflow: hidden; background: color-mix(in srgb, var(--on-band) 18%, transparent); border: 2px solid color-mix(in srgb, var(--on-band) 65%, transparent); }
+  .meter-fill { display: block; width: 0; height: 100%; background: var(--sun); transition: width 0.6s ease; }
+  .meter-label { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .you { display: inline-flex; align-items: center; gap: 12px; max-width: 100%; margin-top: 18px; padding: 10px 14px; background: var(--surface); color: var(--ink); border: 2px solid var(--edge); border-radius: 14px; box-shadow: 4px 4px 0 var(--hard); }
+  .you-emoji { font-size: 30px; line-height: 1; }
+  .you p { margin: 0; min-width: 0; }
+  .you-lead { display: block; font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
+  .you strong { font-family: var(--display); font-weight: 400; font-size: 22px; line-height: 1.1; }
+  .you-reset { flex: none; border: 0; background: none; padding: 6px; color: var(--muted); font-size: 13px; font-weight: 700; text-decoration: underline; }
+
+  .notice { margin: 22px 0 0; padding: 12px 14px; border: 2px dashed var(--edge); border-radius: 12px; background: var(--surface-2); font-weight: 600; }
+
+  /* Stage */
+  .stage { display: grid; gap: 20px; margin-top: 28px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "names" "pick" "food"; }
+  @media (min-width: 700px) { .stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "names pick" "food food"; } }
+  @media (min-width: 1080px) { .stage { grid-template-columns: minmax(0, 1fr) minmax(250px, 0.72fr) minmax(0, 1.3fr); grid-template-areas: "names pick food"; } }
+  .panel { min-width: 0; padding: 18px; background: var(--surface); border: 2px solid var(--edge); border-radius: 18px; box-shadow: 6px 6px 0 var(--hard); }
+  .names { grid-area: names; }
+  .pick-panel { grid-area: pick; }
+  .food { grid-area: food; }
+  .wheel-panel { display: flex; flex-direction: column; }
+  .panel-head { display: flex; align-items: center; gap: 12px; }
+  .step { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--sun); color: var(--on-accent); border: 2px solid var(--edge); font-family: var(--display); font-size: 22px; }
+  .food .step { background: var(--accent); }
+  .panel-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(22px, 2.4vw, 28px); line-height: 1.05; }
+  .panel-head p { margin: 2px 0 0; color: var(--muted); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .wheel-box { position: relative; width: 100%; max-width: 380px; margin: 22px auto 16px; }
+  .food .wheel-box { max-width: 520px; }
+  .wheel-box canvas { display: block; width: 100%; max-width: 100%; height: auto; aspect-ratio: 1 / 1; }
+  .pointer { position: absolute; z-index: 2; left: 50%; top: -14px; width: 30px; height: 40px; transform: translateX(-50%); transform-origin: 50% 25%; }
+  .pointer svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .pointer path { fill: var(--accent); stroke: var(--edge); stroke-width: 3; stroke-linejoin: round; }
+  .legend { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; font-size: 13px; font-weight: 700; color: var(--muted); }
+  .legend li { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .sw { width: 12px; height: 12px; border-radius: 4px; background: var(--c); border: 1.5px solid var(--edge); }
+  .spin-btn { display: block; width: 100%; min-height: 54px; margin-top: auto; padding-inline: 14px; border: 2px solid var(--edge); border-radius: 12px; background: var(--accent); color: var(--on-accent); font-family: var(--display); font-size: 22px; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: 0 4px 0 var(--hard); transition: transform 0.12s ease, box-shadow 0.12s ease; }
+  .spin-btn.sunny { background: var(--sun); }
+  .spin-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 5px 0 var(--hard); }
+  .spin-btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--hard); }
+  .spin-btn:disabled { background: var(--surface-2); color: var(--muted); border-color: var(--line); box-shadow: none; }
+
+  .pick-panel { display: flex; flex-direction: column; justify-content: center; }
+  .pick-panel > div { display: grid; gap: 12px; }
+  .eyebrow { margin: 0; font-size: 12px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: var(--muted); }
+  .hint { margin: 0; color: var(--muted); }
+  .fine { margin: 0; font-size: 13px; color: var(--muted); }
+  .current-name { margin: 0; font-family: var(--display); font-size: clamp(36px, 5vw, 52px); line-height: 1; overflow-wrap: anywhere; }
+  .text-btn { justify-self: start; border: 0; background: none; padding: 4px 0; color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; max-height: 220px; overflow: auto; padding: 3px; }
+  .chip { display: inline-flex; align-items: stretch; max-width: 100%; border: 1.5px solid var(--edge); border-radius: 999px; background: var(--surface-2); overflow: hidden; }
+  .chip.on { background: var(--sun); color: var(--on-accent); }
+  .chip-pick { min-width: 0; border: 0; background: transparent; padding: 7px 14px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chip-pick:hover:not(:disabled) { background: var(--sun); color: var(--on-accent); }
+  .chip-x { flex: none; width: 34px; border: 0; border-left: 1.5px solid var(--line); background: transparent; color: var(--muted); font-size: 18px; line-height: 1; }
+  .chip-x:hover:not(:disabled) { color: var(--danger); }
+  .add-form { display: flex; gap: 8px; }
+  .add-form input { flex: 1 1 auto; min-width: 0; height: 44px; padding-inline: 12px; border: 2px solid var(--line); border-radius: 10px; background: var(--bg); }
+  .add-btn { flex: none; height: 44px; padding-inline: 16px; border: 2px solid var(--edge); border-radius: 10px; background: var(--ink); color: var(--bg); font-weight: 800; }
+  .add-btn:disabled { opacity: 0.5; }
+
+  /* Lineup */
+  .lineup { margin-top: 44px; }
+  .lineup-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  .lineup-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(30px, 4vw, 42px); line-height: 1; }
+  .lineup-head p { margin: 4px 0 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .ghost-btn { padding: 10px 16px; border: 2px solid var(--edge); border-radius: 10px; background: var(--surface); font-weight: 800; box-shadow: 3px 3px 0 var(--hard); }
+  .ghost-btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--hard); }
+  .ghost-btn:disabled { opacity: 0.5; box-shadow: none; }
+  .board { columns: 3 290px; column-gap: 16px; }
+  .board > .empty { column-span: all; }
+  .group { break-inside: avoid; margin-bottom: 16px; padding: 14px 14px 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+  .group h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; }
+  .group h3 .swatch { flex: none; width: 12px; height: 12px; border-radius: 4px; background: var(--cat); border: 1.5px solid var(--edge); }
+  .group h3 .count { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+  .group .note { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .rows { list-style: none; margin: 8px 0 0; padding: 0; }
+  .row { display: grid; grid-template-columns: 2.4ch 1.6em minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid var(--line); }
+  .row.has-actions { grid-template-columns: 2.4ch 1.6em minmax(0, 1fr) auto 30px; }
+  .row .num { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .row .emo { font-size: 19px; line-height: 1; text-align: center; }
+  .row .label { min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .who { max-width: 14ch; padding: 3px 10px; border-radius: 999px; background: color-mix(in srgb, var(--cat) 40%, var(--surface)); font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who.open { background: transparent; border: 1.5px dashed var(--line); color: var(--muted); font-weight: 600; }
+  .row.mine { margin-inline: -6px; padding-inline: 6px; border-radius: 8px; background: var(--mine); }
+  .row-btn { width: 30px; height: 30px; padding: 0; border: 1.5px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--muted); font-size: 16px; line-height: 1; }
+  .row-btn:hover:not(:disabled) { border-color: var(--edge); color: var(--ink); }
+  .empty { margin: 0; padding: 18px; border: 2px dashed var(--line); border-radius: 14px; color: var(--muted); font-weight: 600; text-align: center; }
+
+  /* Host tools */
+  .host-tools { display: grid; gap: 14px; margin-top: 28px; padding: 18px; background: var(--surface); border: 2px dashed var(--edge); border-radius: 18px; }
+  .host-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+  .host-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 26px; }
+  .host-head p { margin: 0; color: var(--muted); font-size: 13px; font-weight: 600; }
+  .item-form { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); align-items: end; }
+  @media (min-width: 640px) { .item-form { grid-template-columns: 90px minmax(0, 1fr) 170px auto; } }
+  .field { display: grid; gap: 4px; min-width: 0; font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
+  .field input, .field select { width: 100%; height: 44px; padding-inline: 10px; border: 2px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--ink); font-size: 15px; font-weight: 500; letter-spacing: 0; text-transform: none; }
+  .danger { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .danger-btn { color: var(--danger); }
+  .confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-weight: 700; }
+
+  .foot { margin-top: 36px; padding-block: 0 8px; color: var(--muted); font-size: 13px; }
+  .foot p { margin: 0; }
+
+  /* Overlays */
+  .overlay { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; background: var(--scrim); }
+  .sheet { display: grid; gap: 12px; width: min(440px, 100%); max-height: calc(100% - 32px); overflow: auto; padding: 24px 20px 20px; background: var(--surface); color: var(--ink); border: 2px solid var(--edge); border-radius: 22px; box-shadow: 8px 8px 0 var(--hard); }
+  .sheet h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 28px; line-height: 1.08; }
+  .reveal-card { text-align: center; animation: pop 0.4s cubic-bezier(0.2, 1.5, 0.4, 1) both; }
+  .reveal-card h2 { font-size: clamp(28px, 7vw, 36px); }
+  .reveal-emoji { font-size: 76px; line-height: 1; }
+  .reveal-item { color: var(--accent-text); }
+  .sheet textarea { width: 100%; min-height: 220px; padding: 10px; border: 2px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 13px; resize: vertical; }
+  @keyframes pop { from { transform: scale(0.85); opacity: 0; } to { transform: none; opacity: 1; } }
+  .confetti { position: fixed; inset: 0; z-index: 40; width: 100%; height: 100%; pointer-events: none; }
+  .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 50; max-width: calc(100% - 32px); padding: 12px 16px; border-radius: 12px; background: var(--ink); color: var(--bg); font-weight: 700; box-shadow: 0 10px 30px -10px var(--hard); opacity: 0; transform: translate(-50%, 12px); pointer-events: none; transition: opacity 0.2s ease, transform 0.2s ease; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="sun" aria-hidden="true"></span>
+    <p class="kicker">Beach day potluck · one person, one thing</p>
+    <h1>Beach Chop <span class="hl">Spinner</span></h1>
+    <p class="tagline">Spin for a name, then spin for the food. Whatever lands leaves the wheel, so nobody turns up with the same jollof.</p>
+    <div class="meter">
+      <div class="meter-track" aria-hidden="true"><span class="meter-fill" id="meter-fill"></span></div>
+      <p class="meter-label" id="meter-label">Loading the lineup…</p>
+    </div>
+    <div class="you" id="you-card" hidden>
+      <span class="you-emoji" id="you-emoji" aria-hidden="true"></span>
+      <p><span class="you-lead">You're bringing</span> <strong id="you-item"></strong></p>
+      <button type="button" class="you-reset" id="you-reset">Not you?</button>
+    </div>
+  </div>
+</header>
+
+<main class="page">
+  <p class="notice" id="notice" role="status" hidden></p>
+
+  <section class="stage" id="stage" aria-label="Spinner">
+    <article class="panel wheel-panel names" id="names-panel">
+      <header class="panel-head">
+        <span class="step" aria-hidden="true">1</span>
+        <div><h2>Who's up?</h2><p id="names-sub">Loading names…</p></div>
+      </header>
+      <div class="wheel-box">
+        <span class="pointer" id="name-pointer" aria-hidden="true"><svg viewBox="0 0 30 40"><path d="M3 3h24L15 37z"/></svg></span>
+        <canvas id="name-wheel" width="380" height="380" role="img" aria-label="Name wheel"></canvas>
+      </div>
+      <button type="button" class="spin-btn sunny" id="spin-names" disabled>Spin the names</button>
+    </article>
+
+    <article class="panel pick-panel" id="pick-panel" aria-live="polite">
+      <div id="pick-current" hidden>
+        <p class="eyebrow">Now picking for</p>
+        <p class="current-name" id="current-name"></p>
+        <p class="hint">Spin the food wheel to see what they're bringing.</p>
+        <button type="button" class="text-btn" id="change-guest">Pick someone else</button>
+      </div>
+      <div id="pick-choose">
+        <p class="eyebrow">Or tap a name</p>
+        <p class="hint" id="choose-hint">Picking for yourself? Tap your name, then spin the food wheel.</p>
+        <div class="chips" id="guest-chips"></div>
+        <form class="add-form" id="guest-form" autocomplete="off">
+          <label class="sr-only" for="guest-input">Add names</label>
+          <input id="guest-input" name="guest" placeholder="Add your name" maxlength="600">
+          <button type="submit" class="add-btn" id="guest-add">Add</button>
+        </form>
+        <p class="fine">Adding a few? Separate names with commas, or paste a list.</p>
+      </div>
+      <div id="pick-readonly" hidden>
+        <p class="eyebrow">View only</p>
+        <p class="hint">You can see who's bringing what, but only people the host invited can spin. Ask the host to spin for you, or check the lineup below.</p>
+      </div>
+    </article>
+
+    <article class="panel wheel-panel food" id="food-panel">
+      <header class="panel-head">
+        <span class="step" aria-hidden="true">2</span>
+        <div><h2>What are they bringing?</h2><p id="food-sub">Loading the menu…</p></div>
+      </header>
+      <div class="wheel-box">
+        <span class="pointer" id="food-pointer" aria-hidden="true"><svg viewBox="0 0 30 40"><path d="M3 3h24L15 37z"/></svg></span>
+        <canvas id="food-wheel" width="520" height="520" role="img" aria-label="Food wheel"></canvas>
+      </div>
+      <ul class="legend" id="legend"></ul>
+      <button type="button" class="spin-btn" id="spin-food" disabled>Pick a name first</button>
+    </article>
+  </section>
+
+  <section class="lineup" id="lineup" aria-labelledby="lineup-title">
+    <div class="lineup-head">
+      <div>
+        <h2 id="lineup-title">The lineup</h2>
+        <p id="lineup-sub">Who's bringing what to the beach.</p>
+      </div>
+      <button type="button" class="ghost-btn" id="copy-btn">Copy for WhatsApp</button>
+    </div>
+    <div class="board" id="board"></div>
+  </section>
+
+  <section class="host-tools" id="host-tools" aria-labelledby="host-title" hidden>
+    <div class="host-head"><h2 id="host-title">Host tools</h2><p id="host-note">Only devices opened with your host link see these controls.</p></div>
+    <form class="item-form" id="item-form" autocomplete="off">
+      <label class="field"><span>Emoji</span><input id="item-emoji" maxlength="8" placeholder="🍹"></label>
+      <label class="field"><span>Add to the menu</span><input id="item-label" maxlength="40" placeholder="Zobo drink"></label>
+      <label class="field"><span>Section</span><select id="item-cat"></select></label>
+      <button type="submit" class="add-btn">Add item</button>
+    </form>
+    <p class="fine">In the lineup, tap ↺ on a claimed row to put that food and name back on the wheels, or × on an open row to take it off the menu.</p>
+    <div class="danger">
+      <button type="button" class="ghost-btn danger-btn" id="clear-btn">Clear all picks</button>
+      <div class="confirm" id="clear-confirm" hidden>
+        <span id="clear-question">Clear every pick?</span>
+        <button type="button" class="ghost-btn danger-btn" id="clear-yes">Yes, clear them</button>
+        <button type="button" class="text-btn" id="clear-no">Keep them</button>
+      </div>
+    </div>
+  </section>
+
+  <footer class="foot"><p id="foot-note">One person, one thing. See you at the beach.</p></footer>
+</main>
+
+<div class="overlay" id="reveal" hidden>
+  <div class="sheet reveal-card" role="dialog" aria-modal="true" aria-labelledby="reveal-title">
+    <p class="eyebrow">The wheel has spoken</p>
+    <div class="reveal-emoji" id="reveal-emoji" aria-hidden="true"></div>
+    <h2 id="reveal-title"><span id="reveal-name"></span> is bringing <span class="reveal-item" id="reveal-item"></span></h2>
+    <p class="hint">It's off the wheel now, so nobody else can land on it.</p>
+    <button type="button" class="spin-btn" id="reveal-done">Nice one</button>
+  </div>
+</div>
+
+<div class="overlay" id="copy-sheet" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="copy-title">
+    <h2 id="copy-title">Copy the lineup</h2>
+    <p class="hint">Automatic copying is blocked here. Select the text below, copy it, and paste it in the group.</p>
+    <textarea id="copy-text" readonly rows="10" aria-label="Lineup text"></textarea>
+    <button type="button" class="spin-btn sunny" id="copy-close">Done</button>
+  </div>
+</div>
+
+<canvas class="confetti" id="confetti" aria-hidden="true" hidden></canvas>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const TAU = Math.PI * 2;
+  const BODY_FONT = '"Figtree", "Segoe UI", system-ui, sans-serif';
+  const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+  const SLICE_INK = "#12303b";
+  const CATEGORIES = [
+    { key: "main", label: "Main food", colors: ["#ff8a65", "#ff7247"] },
+    { key: "chops", label: "Small chops", colors: ["#ffd166", "#ffc23d"] },
+    { key: "fresh", label: "Fresh stuff", colors: ["#86d6a0", "#62c487"] },
+    { key: "drinks", label: "Drinks", colors: ["#74c8ea", "#4fb3de"] },
+    { key: "extras", label: "Don't forget", note: "The things people always forget", colors: ["#f5a8ca", "#ee88b6"] },
+  ];
+  const CAT = {};
+  CATEGORIES.forEach((c, index) => { CAT[c.key] = { ...c, index }; });
+  const NAME_COLORS = ["#ffb199", "#ffd98a", "#9fe0b4", "#96d5f0", "#f7b9d4", "#ffc9a8", "#c5eab0", "#b9e3f5"];
+
+  // Starting menu for the offline copy only. The shared page reads its menu from the store.
+  const LOCAL_MENU = [
+    ["grilled-chicken", "🍗", "Grilled chicken", "main"],
+    ["suya", "🍢", "Suya", "main"],
+    ["grilled-sausage", "🌭", "Grilled sausage", "main"],
+    ["jollof-rice", "🍚", "Jollof rice", "main"],
+    ["french-fries", "🍟", "French fries", "main"],
+    ["fried-yam", "🍠", "Fried yam", "main"],
+    ["fried-plantain", "🍌", "Fried plantain", "main"],
+    ["potato-chips", "🥔", "Potato chips", "main"],
+    ["sandwiches", "🥪", "Sandwiches", "main"],
+    ["shawarma", "🌯", "Shawarma", "main"],
+    ["samosa", "🥟", "Samosa", "chops"],
+    ["spring-rolls", "🥠", "Spring rolls", "chops"],
+    ["puff-puff", "🍩", "Puff-puff", "chops"],
+    ["chin-chin", "🥜", "Chin chin", "chops"],
+    ["peppered-gizzard", "🍗", "Peppered gizzard", "chops"],
+    ["peppered-meat", "🍢", "Peppered meat", "chops"],
+    ["watermelon", "🍉", "Watermelon", "fresh"],
+    ["pineapple", "🍍", "Pineapple", "fresh"],
+    ["oranges", "🍊", "Oranges", "fresh"],
+    ["grapes", "🍇", "Grapes", "fresh"],
+    ["fruit-salad", "🥗", "Fruit salad", "fresh"],
+    ["bottled-water", "💧", "Bottled water", "drinks"],
+    ["soft-drinks", "🥤", "Soft drinks", "drinks"],
+    ["juice", "🧃", "Juice", "drinks"],
+    ["ice-cooler", "🧊", "Ice + cooler", "drinks"],
+    ["ketchup-mayo", "🥫", "Ketchup + mayonnaise", "extras"],
+    ["pepper-sauce", "🌶️", "Pepper sauce", "extras"],
+    ["disposable-plates", "🍽️", "Disposable plates", "extras"],
+    ["disposable-cups", "🥛", "Disposable cups", "extras"],
+    ["cutlery", "🍴", "Cutlery", "extras"],
+  ];
+
+  const $ = (selector) => document.querySelector(selector);
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const stacked = window.matchMedia("(max-width: 1079px)");
+  const ME_KEY = "beach-chop-me";
+  const HOST_KEY = "beach-chop-host-key";
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const mod = (a, m) => ((a % m) + m) % m;
+  const randomId = () => Math.random().toString(36).slice(2, 8);
+
+  function readMe() { try { return localStorage.getItem(ME_KEY); } catch (e) { return null; } }
+  function writeMe(id) { try { if (id) localStorage.setItem(ME_KEY, id); else localStorage.removeItem(ME_KEY); } catch (e) { /* per-device convenience only */ } }
+
+  function slugify(text) {
+    return text.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
+  }
+  function cleanText(text, max) { return Array.from(text.replace(/\s+/g, " ").trim()).slice(0, max).join(""); }
+  function splitNames(raw) {
+    return raw.split(/[\n,;]+/)
+      .map((part) => cleanText(part.replace(/^\s*\d+\s*[.)-]\s*/, "").replace(/[*_~]/g, ""), 40))
+      .filter(Boolean);
+  }
+  function shuffle(list) {
+    const out = list.slice();
+    for (let i = out.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [out[i], out[j]] = [out[j], out[i]];
+    }
+    return out;
+  }
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+  function fitText(ctx, text, max) {
+    if (ctx.measureText(text).width <= max) return text;
+    const chars = Array.from(text);
+    let lo = 0, hi = chars.length;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (ctx.measureText(chars.slice(0, mid).join("") + "…").width <= max) lo = mid; else hi = mid - 1;
+    }
+    return lo ? chars.slice(0, lo).join("").trimEnd() + "…" : "";
+  }
+
+  /* ---------- Wheel ---------- */
+
+  class Wheel {
+    constructor(canvas, pointer, kind) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext("2d");
+      this.pointer = pointer;
+      this.kind = kind;
+      this.entries = [];
+      this.emptyText = "";
+      this.rotation = 0;
+      this.size = 0;
+      this.dpr = 1;
+      this.face = document.createElement("canvas");
+      this.faceDirty = true;
+      this.palette = null;
+      this.highlightId = null;
+      this.frozen = false;
+      this.pending = null;
+      this.lastSlice = -1;
+      this.lastFlick = 0;
+      if ("ResizeObserver" in window) new ResizeObserver(() => this.resize()).observe(canvas);
+      window.addEventListener("resize", () => this.resize());
+      this.resize();
+    }
+
+    resize() {
+      const width = Math.round(this.canvas.getBoundingClientRect().width);
+      if (!width) return;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+      if (width === this.size && dpr === this.dpr) return;
+      this.size = width;
+      this.dpr = dpr;
+      this.canvas.width = Math.round(width * dpr);
+      this.canvas.height = Math.round(width * dpr);
+      this.faceDirty = true;
+      this.draw();
+    }
+
+    setEntries(entries, emptyText) {
+      if (this.frozen) { this.pending = { entries, emptyText }; return; }
+      const same = entries.length === this.entries.length && entries.every((e, i) => {
+        const old = this.entries[i];
+        return e.id === old.id && e.label === old.label && e.color === old.color && e.emoji === old.emoji;
+      });
+      this.entries = entries;
+      this.emptyText = emptyText;
+      if (!same) this.faceDirty = true;
+      this.draw();
+    }
+
+    freeze() { this.frozen = true; }
+
+    unfreeze() {
+      this.frozen = false;
+      if (this.highlightId) { this.highlightId = null; this.faceDirty = true; }
+      if (this.pending) {
+        const { entries, emptyText } = this.pending;
+        this.pending = null;
+        this.setEntries(entries, emptyText);
+      } else {
+        this.draw();
+      }
+    }
+
+    highlight(id) { this.highlightId = id; this.faceDirty = true; this.draw(); }
+
+    refresh() { this.palette = null; this.faceDirty = true; this.draw(); }
+
+    colors() {
+      if (!this.palette) {
+        const css = getComputedStyle(document.documentElement);
+        const read = (name, fallback) => css.getPropertyValue(name).trim() || fallback;
+        this.palette = {
+          edge: read("--edge", "#0e3340"),
+          surface: read("--surface", "#ffffff"),
+          soft: read("--surface-2", "#d5ede8"),
+          muted: read("--muted", "#48666d"),
+          accent: read("--accent", "#ff6a3d"),
+        };
+      }
+      return this.palette;
+    }
+
+    paintFace(col) {
+      const s = this.size;
+      const face = this.face;
+      face.width = Math.round(s * this.dpr);
+      face.height = Math.round(s * this.dpr);
+      const ctx = face.getContext("2d");
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      const c = s / 2;
+      const r = c - 2;
+      const inner = r - Math.max(5, s * 0.02);
+      const n = this.entries.length;
+      const slice = TAU / n;
+      ctx.translate(c, c);
+      ctx.beginPath();
+      ctx.arc(0, 0, r, 0, TAU);
+      ctx.fillStyle = col.edge;
+      ctx.fill();
+
+      this.entries.forEach((e, i) => {
+        const a0 = -Math.PI / 2 + i * slice;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, inner, a0, a0 + slice);
+        ctx.closePath();
+        ctx.fillStyle = e.color;
+        ctx.fill();
+        if (this.highlightId && e.id !== this.highlightId) {
+          ctx.fillStyle = "rgba(4, 20, 27, 0.58)";
+          ctx.fill();
+        }
+        if (n > 1) {
+          ctx.lineWidth = n > 18 ? 1 : 2;
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+          ctx.stroke();
+        }
+      });
+
+      const hi = this.entries.findIndex((e) => e.id === this.highlightId);
+      if (hi >= 0 && n > 1) {
+        const a0 = -Math.PI / 2 + hi * slice;
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, inner - 2, a0, a0 + slice);
+        ctx.closePath();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+      }
+
+      const isFood = this.kind === "food";
+      const fontSize = Math.max(9, Math.min(s * 0.05, slice * inner * (isFood ? 0.3 : 0.36)));
+      const emojiSize = Math.max(11, Math.min(s * 0.065, slice * inner * 0.5));
+      this.entries.forEach((e, i) => {
+        ctx.save();
+        ctx.rotate(-Math.PI / 2 + (i + 0.5) * slice);
+        let textEnd = inner - Math.max(12, inner * 0.07);
+        if (isFood && e.emoji) {
+          ctx.save();
+          ctx.translate(inner - emojiSize * 0.8, 0);
+          ctx.rotate(Math.PI / 2);
+          ctx.font = `${emojiSize}px ${EMOJI_FONT}`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = SLICE_INK;
+          ctx.fillText(e.emoji, 0, 0);
+          ctx.restore();
+          textEnd = inner - emojiSize * 1.6;
+        }
+        ctx.font = `700 ${fontSize}px ${BODY_FONT}`;
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = SLICE_INK;
+        ctx.fillText(fitText(ctx, e.label, textEnd - inner * 0.25), textEnd, 0);
+        ctx.restore();
+      });
+    }
+
+    draw() {
+      const s = this.size;
+      if (!s) return;
+      const ctx = this.ctx;
+      const col = this.colors();
+      const c = s / 2;
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      ctx.clearRect(0, 0, s, s);
+
+      if (!this.entries.length) {
+        ctx.beginPath();
+        ctx.arc(c, c, c - 2, 0, TAU);
+        ctx.fillStyle = col.edge;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(c, c, c - 2 - Math.max(5, s * 0.02), 0, TAU);
+        ctx.fillStyle = col.soft;
+        ctx.fill();
+        ctx.fillStyle = col.muted;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = `700 ${Math.round(s * 0.058)}px ${BODY_FONT}`;
+        const lines = (this.emptyText || "").split("\n");
+        const lineHeight = s * 0.075;
+        lines.forEach((line, i) => {
+          ctx.fillText(fitText(ctx, line, s * 0.7), c, c + (i - (lines.length - 1) / 2) * lineHeight);
+        });
+        return;
+      }
+
+      if (this.faceDirty) { this.paintFace(col); this.faceDirty = false; }
+      ctx.save();
+      ctx.translate(c, c);
+      ctx.rotate(this.rotation);
+      ctx.drawImage(this.face, -c, -c, s, s);
+      ctx.restore();
+
+      ctx.beginPath();
+      ctx.arc(c, c, s * 0.085, 0, TAU);
+      ctx.fillStyle = col.surface;
+      ctx.fill();
+      ctx.lineWidth = Math.max(3, s * 0.012);
+      ctx.strokeStyle = col.edge;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(c, c, s * 0.03, 0, TAU);
+      ctx.fillStyle = col.accent;
+      ctx.fill();
+    }
+
+    // Rotation that puts `fraction` of the way through slice `index` under the pointer.
+    targetFor(index, fraction) {
+      return -(index + fraction) * (TAU / this.entries.length);
+    }
+
+    flick() {
+      const n = this.entries.length;
+      if (!n || !this.pointer || typeof this.pointer.animate !== "function") return;
+      const index = Math.floor(mod(-this.rotation, TAU) / (TAU / n));
+      if (index === this.lastSlice) return;
+      this.lastSlice = index;
+      const now = performance.now();
+      if (now - this.lastFlick < 45) return;
+      this.lastFlick = now;
+      this.pointer.animate(
+        [{ transform: "translateX(-50%) rotate(-20deg)" }, { transform: "translateX(-50%) rotate(0deg)" }],
+        { duration: 150, easing: "ease-out" }
+      );
+    }
+
+    // Spins until `result` resolves to an entry id, then eases onto that slice.
+    spin(result) {
+      const settle = Promise.resolve(result).then((id) => id, () => null);
+      if (reduceMotion.matches || !this.entries.length) {
+        return settle.then((id) => {
+          const index = this.entries.findIndex((e) => e.id === id);
+          if (index >= 0) this.rotation = this.targetFor(index, 0.5);
+          this.draw();
+          return id;
+        });
+      }
+      return new Promise((resolve) => {
+        const maxSpeed = 0.021;
+        const start = performance.now();
+        let last = start;
+        let rotation = this.rotation;
+        let speed = 0;
+        let stop = null;
+        let settled = false;
+        let winner = null;
+        settle.then((id) => { winner = id; settled = true; });
+        const frame = (now) => {
+          const dt = Math.min(50, now - last);
+          last = now;
+          if (!stop) {
+            speed = maxSpeed * Math.min(1, (now - start) / 450);
+            rotation += speed * dt;
+            if (settled && now - start > 700) {
+              const index = this.entries.findIndex((e) => e.id === winner);
+              const distance = index >= 0
+                ? mod(this.targetFor(index, 0.18 + Math.random() * 0.64) - rotation, TAU) + TAU * 2
+                : TAU * 0.75;
+              stop = { from: rotation, distance, duration: (3 * distance) / speed, start: now };
+            }
+          } else {
+            const p = Math.min(1, (now - stop.start) / stop.duration);
+            rotation = stop.from + stop.distance * (1 - Math.pow(1 - p, 3));
+            if (p >= 1) {
+              this.rotation = mod(rotation, TAU);
+              this.draw();
+              resolve(winner);
+              return;
+            }
+          }
+          this.rotation = rotation;
+          this.flick();
+          this.draw();
+          requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      });
+    }
+  }
+
+  /* ---------- Stores ---------- */
+
+  function createLocalStore() {
+    const KEY = "beach-chop-local-v1";
+    let data = null;
+    try { data = JSON.parse(localStorage.getItem(KEY)); } catch (e) { data = null; }
+    if (!data || typeof data !== "object" || !data.items || !data.guests) {
+      data = { guests: {}, items: {} };
+      LOCAL_MENU.forEach(([id, emoji, label, category], i) => {
+        data.items[id] = { label, emoji, category, order: i + 1, guestId: null, guestName: null, claimedAt: null };
+      });
+    }
+    const listeners = new Set();
+    const view = () => ({
+      ready: true,
+      guests: Object.keys(data.guests).map((id) => ({ id, ...data.guests[id] })),
+      items: Object.keys(data.items).map((id) => ({ id, ...data.items[id] })),
+    });
+    const commit = () => {
+      try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* this device only */ }
+      const snap = view();
+      listeners.forEach((fn) => fn(snap));
+    };
+    return {
+      subscribe(fn) { listeners.add(fn); fn(view()); },
+      async addGuests(names) {
+        const added = [];
+        const dupes = [];
+        names.forEach((name) => {
+          const key = name.toLocaleLowerCase();
+          const knownId = Object.keys(data.guests).find((id) => data.guests[id].name.toLocaleLowerCase() === key);
+          if (knownId) { dupes.push({ id: knownId, name: data.guests[knownId].name }); return; }
+          let id = "g-" + (slugify(name) || randomId());
+          if (data.guests[id]) id += "-" + randomId();
+          data.guests[id] = { name, addedAt: Date.now() };
+          added.push({ id, name });
+        });
+        if (added.length) commit();
+        return { added, dupes };
+      },
+      async removeGuest(id) { delete data.guests[id]; commit(); },
+      async claim(guest, candidateIds) {
+        const mine = Object.keys(data.items).find((id) => data.items[id].guestId === guest.id);
+        if (mine) return { already: true, itemId: mine };
+        const itemId = candidateIds.find((id) => data.items[id] && !data.items[id].guestId);
+        if (!itemId) return { itemId: null };
+        Object.assign(data.items[itemId], { guestId: guest.id, guestName: guest.name, claimedAt: Date.now() });
+        commit();
+        return { itemId };
+      },
+      async release(id) {
+        if (data.items[id]) Object.assign(data.items[id], { guestId: null, guestName: null, claimedAt: null });
+        commit();
+      },
+      async addItem({ label, emoji, category }) {
+        let id = "x-" + (slugify(label) || randomId());
+        if (data.items[id]) id += "-" + randomId();
+        const order = Object.values(data.items).reduce((max, it) => Math.max(max, it.order || 0), 0) + 1;
+        data.items[id] = { label, emoji, category, order, guestId: null, guestName: null, claimedAt: null };
+        commit();
+      },
+      async removeItem(id) { delete data.items[id]; commit(); },
+      async clearAll() {
+        Object.values(data.items).forEach((it) => Object.assign(it, { guestId: null, guestName: null, claimedAt: null }));
+        commit();
+      },
+      async checkHost() { return true; },
+    };
+  }
+
+  // The website's shared lineup: /api/spinner (Vercel function + Upstash Redis), polled every few seconds.
+  function createApiStore(onStatus) {
+    const ENDPOINT = "/api/spinner";
+    let snap = { ready: false, guests: [], items: [] };
+    let inflight = null;
+    let timer = 0;
+    const listeners = new Set();
+
+    async function call(body) {
+      let response;
+      try {
+        response = await fetch(ENDPOINT, body
+          ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), cache: "no-store" }
+          : { cache: "no-store" });
+      } catch (e) {
+        throw { code: "offline", message: "" };
+      }
+      let data = null;
+      try { data = await response.json(); } catch (e) { data = null; }
+      if (!response.ok) throw { code: (data && data.error) || "unavailable", message: (data && data.message) || "" };
+      return data || {};
+    }
+
+    function refresh() {
+      if (inflight) return inflight;
+      inflight = call(null).then((data) => {
+        snap = { ready: true, guests: data.guests || [], items: data.items || [] };
+        onStatus(null);
+        listeners.forEach((fn) => fn(snap));
+      }, (err) => onStatus(err)).finally(() => { inflight = null; });
+      return inflight;
+    }
+    // Reads again after a write, waiting out any read that started before it.
+    const fresh = () => (inflight ? inflight.then(refresh) : refresh());
+    const write = async (body) => { try { return await call(body); } finally { await fresh(); } };
+    const host = (body) => write({ ...body, hostKey: app.hostKey });
+
+    function poll() {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        (document.visibilityState === "visible" ? refresh() : Promise.resolve()).then(poll);
+      }, 4000);
+    }
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(); });
+
+    return {
+      subscribe(fn) { listeners.add(fn); fn(snap); refresh(); poll(); },
+      addGuests(names) { return write({ type: "addGuests", names }); },
+      claim(guest, candidateIds) {
+        const result = call({ type: "claim", guestId: guest.id, candidates: candidateIds });
+        result.then(fresh, fresh);
+        return result;
+      },
+      removeGuest(id) { return host({ type: "removeGuest", id }); },
+      release(id) { return host({ type: "release", id }); },
+      addItem(item) { return host({ type: "addItem", ...item }); },
+      removeItem(id) { return host({ type: "removeItem", id }); },
+      clearAll() { return host({ type: "clearAll" }); },
+      checkHost(key) { return call({ type: "hostCheck", hostKey: key }).then((d) => !!d.ok, () => false); },
+    };
+  }
+
+  /* ---------- App state ---------- */
+
+  const app = {
+    store: null,
+    mode: "loading", // loading | local | shared
+    canWrite: false,
+    isHost: false,
+    hostKey: null,
+    connLost: false,
+    setupNeeded: false,
+    latest: { ready: false, guests: [], items: [] },
+    view: { ready: false, guests: [], items: [] },
+    busy: false,
+    current: null, // { id, name, via: "spin" | "chip" }
+    meId: readMe(),
+    autoPicked: false,
+  };
+
+  const nameWheel = new Wheel($("#name-wheel"), $("#name-pointer"), "names");
+  const foodWheel = new Wheel($("#food-wheel"), $("#food-pointer"), "food");
+
+  function catOf(item) { return CAT[item.category] ? item.category : "extras"; }
+
+  function derive(snap) {
+    const items = snap.items
+      .filter((it) => it && typeof it.label === "string" && it.label)
+      .sort((a, b) => CAT[catOf(a)].index - CAT[catOf(b)].index || (a.order || 0) - (b.order || 0) || a.label.localeCompare(b.label));
+    const claimedBy = new Map();
+    items.forEach((it) => { if (it.guestId) claimedBy.set(it.guestId, it); });
+    const guests = snap.guests
+      .filter((g) => g && typeof g.name === "string" && g.name)
+      .sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0) || a.name.localeCompare(b.name));
+    const waiting = guests.filter((g) => !claimedBy.has(g.id));
+    const open = items.filter((it) => !it.guestId);
+    return { items, guests, waiting, open, claimedBy };
+  }
+
+  function onSnap(snap) {
+    app.latest = snap;
+    if (!app.busy) { app.view = snap; render(); }
+  }
+
+  /* ---------- Rendering ---------- */
+
+  function render() {
+    const d = derive(app.view);
+    if (app.current && !app.busy) {
+      const guest = d.guests.find((g) => g.id === app.current.id);
+      if (!guest || d.claimedBy.has(guest.id)) app.current = null;
+      else app.current.name = guest.name;
+    }
+    if (!app.autoPicked && app.view.ready && app.mode === "shared") {
+      app.autoPicked = true;
+      const me = !app.isHost && app.canWrite && d.waiting.find((g) => g.id === app.meId);
+      if (me && !app.current) app.current = { id: me.id, name: me.name, via: "chip" };
+    }
+    renderNotice();
+    renderHero(d);
+    renderStage(d);
+    renderBoard(d);
+    renderHost(d);
+  }
+
+  function renderNotice() {
+    let text = "";
+    if (app.mode === "local") text = "Offline copy: picks save on this device only. Open the website link so everyone spins the same wheels.";
+    else if (app.setupNeeded) text = "Almost ready: the database isn't connected yet. Host: in Vercel, open the Storage tab, connect an Upstash Redis database to this project, then redeploy.";
+    else if (app.connLost) text = "Can't reach the lineup right now. It keeps trying, or you can reload the page.";
+    const notice = $("#notice");
+    notice.textContent = text;
+    notice.hidden = !text;
+    $("#foot-note").textContent = app.mode === "local"
+      ? "This copy keeps its picks on this device. One person, one thing."
+      : "Picks save for everyone using this link. One person, one thing. See you at the beach.";
+  }
+
+  function renderHero(d) {
+    const total = d.items.length;
+    const claimed = total - d.open.length;
+    $("#meter-fill").style.width = total ? (claimed / total) * 100 + "%" : "0";
+    let label = "Loading the lineup…";
+    if (app.setupNeeded) label = "Waiting for the database";
+    else if (app.view.ready) {
+      const waiting = d.waiting.length;
+      label = `${claimed} of ${total} claimed`;
+      if (d.guests.length) label += ` · ${waiting} ${waiting === 1 ? "name" : "names"} waiting`;
+    }
+    $("#meter-label").textContent = label;
+
+    const mine = app.meId ? d.claimedBy.get(app.meId) : null;
+    $("#you-card").hidden = !mine;
+    if (mine) {
+      $("#you-emoji").textContent = mine.emoji || "🏖️";
+      $("#you-item").textContent = mine.label;
+    }
+  }
+
+  function renderStage(d) {
+    $("#stage").hidden = false;
+    const ready = app.view.ready;
+    const readOnly = app.mode === "shared" && !app.canWrite;
+
+    const nameEntries = d.waiting
+      .filter((g) => !app.current || g.id !== app.current.id)
+      .map((g, i) => ({ id: g.id, label: g.name, color: NAME_COLORS[i % NAME_COLORS.length] }));
+    let nameEmpty = "Everyone's\nsorted!";
+    if (!ready) nameEmpty = "Loading…";
+    else if (!d.guests.length) nameEmpty = "Add names\nto fill the wheel";
+    else if (app.current && d.waiting.length === 1) nameEmpty = "Picking for\n" + app.current.name;
+    nameWheel.setEntries(nameEntries, nameEmpty);
+
+    const seen = {};
+    const foodEntries = d.open.map((it) => {
+      const key = catOf(it);
+      seen[key] = (seen[key] || 0) + 1;
+      return { id: it.id, label: it.label, emoji: it.emoji || "", color: CAT[key].colors[seen[key] % 2], item: it };
+    });
+    let foodEmpty = "All claimed!";
+    if (!ready) foodEmpty = "Loading…";
+    else if (!d.items.length) foodEmpty = "No menu\nyet";
+    foodWheel.setEntries(foodEntries, foodEmpty);
+
+    $("#names-sub").textContent = !ready ? "Loading names…"
+      : d.guests.length ? `${d.waiting.length} of ${d.guests.length} still waiting` : "No names yet";
+    $("#food-sub").textContent = !ready ? "Loading the menu…"
+      : d.items.length ? `${d.open.length} of ${d.items.length} still open` : "The menu is empty";
+    $("#name-wheel").setAttribute("aria-label", `Name wheel with ${nameEntries.length} ${nameEntries.length === 1 ? "name" : "names"}`);
+    $("#food-wheel").setAttribute("aria-label", `Food wheel with ${foodEntries.length} ${foodEntries.length === 1 ? "item" : "items"} left`);
+
+    const spinNamesBtn = $("#spin-names");
+    spinNamesBtn.hidden = readOnly;
+    spinNamesBtn.disabled = app.busy || !ready || !app.canWrite || !nameEntries.length;
+    spinNamesBtn.textContent = app.current ? "Spin again" : "Spin the names";
+
+    const spinFoodBtn = $("#spin-food");
+    spinFoodBtn.hidden = readOnly;
+    spinFoodBtn.disabled = app.busy || !ready || !app.canWrite || !app.current || !foodEntries.length;
+    spinFoodBtn.textContent = !app.current ? "Pick a name first"
+      : !foodEntries.length ? "Nothing left to spin"
+      : `Spin for ${app.current.name}`;
+
+    $("#pick-readonly").hidden = !readOnly;
+    $("#pick-current").hidden = readOnly || !app.current;
+    $("#pick-choose").hidden = readOnly || !!app.current;
+    $("#change-guest").disabled = app.busy;
+    if (app.current) $("#current-name").textContent = app.current.name;
+
+    $("#choose-hint").textContent = ready && !d.guests.length
+      ? (app.isHost ? "Start by adding names. Paste the whole group list at once if you like." : "Add your name to get on the wheel.")
+      : "Picking for yourself? Tap your name, then spin the food wheel.";
+    $("#guest-input").placeholder = app.isHost ? "Add names, or paste a list" : "Add your name";
+    $("#guest-add").disabled = app.busy || !ready;
+
+    const chips = $("#guest-chips");
+    chips.replaceChildren();
+    if (ready && !d.waiting.length) {
+      chips.append(el("p", "fine", d.guests.length ? "Everyone has been picked." : "No names yet."));
+    }
+    d.waiting.forEach((g) => {
+      const chip = el("span", "chip");
+      const pick = el("button", "chip-pick", g.name);
+      pick.type = "button";
+      pick.dataset.pick = g.id;
+      pick.disabled = app.busy;
+      chip.append(pick);
+      if (app.isHost) {
+        const drop = el("button", "chip-x", "×");
+        drop.type = "button";
+        drop.dataset.drop = g.id;
+        drop.disabled = app.busy;
+        drop.setAttribute("aria-label", `Remove ${g.name}`);
+        drop.title = `Remove ${g.name}`;
+        chip.append(drop);
+      }
+      chips.append(chip);
+    });
+  }
+
+  function renderBoard(d) {
+    $("#lineup").hidden = false;
+    const board = $("#board");
+    board.replaceChildren();
+    const total = d.items.length;
+    const claimed = total - d.open.length;
+    $("#lineup-sub").textContent = !app.view.ready ? "Loading…"
+      : total ? `${claimed} of ${total} claimed. Anything marked Open is still up for grabs.` : "Who's bringing what to the beach.";
+    $("#copy-btn").disabled = !app.view.ready || !total;
+
+    if (!app.view.ready) { board.append(el("p", "empty", "Loading the lineup…")); return; }
+    if (!total) {
+      board.append(el("p", "empty", app.isHost
+        ? "The menu is empty. Add food and drinks in Host tools below."
+        : "The host hasn't added the menu yet. Check back soon."));
+      return;
+    }
+
+    const hostActions = app.isHost && app.canWrite;
+    let number = 0;
+    CATEGORIES.forEach((cat) => {
+      const rows = d.items.filter((it) => catOf(it) === cat.key);
+      if (!rows.length) return;
+      const group = el("section", "group");
+      group.style.setProperty("--cat", cat.colors[1]);
+      const heading = el("h3");
+      heading.append(el("span", "swatch"), el("span", "", cat.label),
+        el("span", "count", `${rows.filter((it) => it.guestId).length}/${rows.length}`));
+      group.append(heading);
+      if (cat.note) group.append(el("p", "note", cat.note));
+      const list = el("ol", "rows");
+      rows.forEach((it) => {
+        number += 1;
+        const mine = app.meId && it.guestId === app.meId;
+        const row = el("li", "row" + (mine ? " mine" : "") + (hostActions ? " has-actions" : ""));
+        row.append(
+          el("span", "num", String(number).padStart(2, "0")),
+          el("span", "emo", it.emoji || "•"),
+          el("span", "label", it.label),
+          el("span", it.guestId ? "who" : "who open", it.guestId ? (it.guestName || "Someone") : "Open")
+        );
+        if (hostActions) {
+          const btn = el("button", "row-btn", it.guestId ? "↺" : "×");
+          btn.type = "button";
+          btn.disabled = app.busy;
+          if (it.guestId) {
+            btn.dataset.release = it.id;
+            btn.setAttribute("aria-label", `Put ${it.label} and ${it.guestName || "their name"} back on the wheels`);
+            btn.title = "Put back on the wheels";
+          } else {
+            btn.dataset.remove = it.id;
+            btn.setAttribute("aria-label", `Remove ${it.label} from the menu`);
+            btn.title = "Remove from the menu";
+          }
+          row.append(btn);
+        }
+        list.append(row);
+      });
+      group.append(list);
+      board.append(group);
+    });
+  }
+
+  function renderHost(d) {
+    const show = app.isHost && app.canWrite;
+    $("#host-tools").hidden = !show;
+    if (!show) return;
+    $("#host-note").textContent = app.mode === "local" ? "Everything here saves on this device." : "Only devices opened with your host link see these controls.";
+    const claimed = d.items.filter((it) => it.guestId).length;
+    $("#clear-btn").disabled = app.busy || !claimed;
+    if (!claimed) $("#clear-confirm").hidden = true;
+    $("#clear-btn").hidden = !$("#clear-confirm").hidden;
+    $("#clear-question").textContent = `Clear all ${claimed} ${claimed === 1 ? "pick" : "picks"}?`;
+  }
+
+  /* ---------- Feedback ---------- */
+
+  let toastTimer = 0;
+  function toast(message) {
+    const node = $("#toast");
+    node.textContent = message;
+    node.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => node.classList.remove("show"), 3200);
+  }
+
+  function handleError(err) {
+    const code = err && err.code;
+    if (code === "offline") { toast("Can't reach the lineup. Check your connection and try again."); return; }
+    if (code === "not_configured") { app.setupNeeded = true; render(); toast("The database isn't connected yet."); return; }
+    if (code === "not_host") { toast("Only the host can do that."); return; }
+    toast((err && err.message) || "That didn't save. Try again in a moment.");
+  }
+
+  async function guarded(action) {
+    try { await action(); return true; } catch (err) { handleError(err); return false; }
+  }
+
+  function confetti() {
+    if (reduceMotion.matches) return;
+    const canvas = $("#confetti");
+    const ctx = canvas.getContext("2d");
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.hidden = false;
+    const colors = CATEGORIES.map((c) => c.colors[1]).concat(["#ffffff"]);
+    const bits = Array.from({ length: 140 }, () => ({
+      x: w / 2 + (Math.random() - 0.5) * 60,
+      y: h * 0.4,
+      vx: (Math.random() - 0.5) * 15,
+      vy: -Math.random() * 13 - 4,
+      w: 6 + Math.random() * 6,
+      h: 8 + Math.random() * 8,
+      r: Math.random() * TAU,
+      vr: (Math.random() - 0.5) * 0.4,
+      c: colors[Math.floor(Math.random() * colors.length)],
+    }));
+    const start = performance.now();
+    const life = 1900;
+    const frame = (now) => {
+      const t = now - start;
+      ctx.clearRect(0, 0, w, h);
+      ctx.globalAlpha = Math.max(0, 1 - t / life);
+      bits.forEach((b) => {
+        b.vy += 0.35;
+        b.vx *= 0.99;
+        b.x += b.vx;
+        b.y += b.vy;
+        b.r += b.vr;
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.r);
+        ctx.fillStyle = b.c;
+        ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h);
+        ctx.restore();
+      });
+      if (t < life) requestAnimationFrame(frame);
+      else { ctx.clearRect(0, 0, w, h); canvas.hidden = true; }
+    };
+    requestAnimationFrame(frame);
+  }
+
+  function bringIntoView(selector) {
+    if (!stacked.matches) return;
+    $(selector).scrollIntoView({ behavior: reduceMotion.matches ? "auto" : "smooth", block: "start" });
+  }
+
+  /* ---------- Actions ---------- */
+
+  function startSpin() {
+    app.busy = true;
+    nameWheel.freeze();
+    foodWheel.freeze();
+    render();
+  }
+
+  function finishSpin() {
+    app.busy = false;
+    app.view = app.latest;
+    nameWheel.unfreeze();
+    foodWheel.unfreeze();
+    render();
+  }
+
+  async function spinNames() {
+    if (app.busy || !app.canWrite) return;
+    const pool = nameWheel.entries.slice();
+    if (!pool.length) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    startSpin();
+    const landed = await nameWheel.spin(Promise.resolve(pick.id));
+    nameWheel.highlight(landed);
+    await wait(reduceMotion.matches ? 250 : 900);
+    app.current = { id: pick.id, name: pick.label, via: "spin" };
+    finishSpin();
+    toast(`${pick.label} is up! Now spin the food.`);
+    bringIntoView("#food-panel");
+  }
+
+  async function spinFood() {
+    if (app.busy || !app.canWrite || !app.current) return;
+    const entries = foodWheel.entries.slice();
+    if (!entries.length) return;
+    const guest = { id: app.current.id, name: app.current.name };
+    const via = app.current.via;
+    startSpin();
+    const claim = app.store.claim(guest, shuffle(entries.map((e) => e.id)));
+    await foodWheel.spin(claim.then((res) => (res && res.itemId && !res.already ? res.itemId : null)));
+    let res;
+    try { res = await claim; } catch (err) { finishSpin(); handleError(err); return; }
+    if (res.already) { app.current = null; finishSpin(); toast(`${guest.name} already has something to bring. Check the lineup.`); return; }
+    if (!res.itemId) { finishSpin(); toast("Everything on the menu is taken. Ask the host to add more."); return; }
+    const entry = entries.find((e) => e.id === res.itemId);
+    foodWheel.highlight(res.itemId);
+    if (app.mode === "shared" && !app.isHost && via === "chip") { app.meId = guest.id; writeMe(guest.id); }
+    app.current = null;
+    await wait(reduceMotion.matches ? 150 : 550);
+    openReveal(guest.name, entry ? entry.item : null);
+  }
+
+  function openReveal(name, item) {
+    $("#reveal-name").textContent = name;
+    $("#reveal-item").textContent = item ? item.label : "something great";
+    $("#reveal-emoji").textContent = item && item.emoji ? item.emoji : "🎉";
+    $("#reveal").hidden = false;
+    $("#reveal-done").focus();
+    confetti();
+  }
+
+  function closeReveal() {
+    if ($("#reveal").hidden) return;
+    $("#reveal").hidden = true;
+    finishSpin();
+    const next = $("#spin-names");
+    if (!next.hidden && !next.disabled) next.focus();
+  }
+
+  function selectGuest(id) {
+    if (app.busy || !app.canWrite) return;
+    const guest = derive(app.view).waiting.find((g) => g.id === id);
+    if (!guest) return;
+    app.current = { id: guest.id, name: guest.name, via: "chip" };
+    render();
+    bringIntoView("#food-panel");
+  }
+
+  async function addNames(raw) {
+    const names = splitNames(raw).slice(0, 50);
+    if (!names.length) return;
+    let result;
+    try { result = await app.store.addGuests(names); } catch (err) { handleError(err); return; }
+    const added = result.added || [];
+    const dupes = result.dupes || [];
+    const d = derive(app.latest);
+    if (added.length === 1) toast(`${added[0].name} is on the wheel.`);
+    else if (added.length > 1) toast(`${added.length} names added to the wheel.`);
+    else if (dupes.length) toast(dupes.length === 1 ? `${dupes[0].name} is already on the list.` : "Those names are already on the list.");
+    // A guest adding just themselves is ready to spin straight away.
+    const self = added[0] || (dupes.length === 1 ? dupes[0] : null);
+    if (names.length === 1 && self && !app.isHost && app.mode === "shared" && !d.claimedBy.has(self.id)) {
+      app.current = { id: self.id, name: self.name, via: "chip" };
+      render();
+      bringIntoView("#food-panel");
+    }
+  }
+
+  async function removeGuest(id) {
+    if (app.busy || !app.isHost) return;
+    const guest = derive(app.latest).guests.find((g) => g.id === id);
+    if (!guest) return;
+    if (app.current && app.current.id === id) app.current = null;
+    if (await guarded(() => app.store.removeGuest(id))) toast(`${guest.name} is off the list.`);
+  }
+
+  async function releaseItem(id) {
+    if (app.busy || !app.isHost) return;
+    const item = derive(app.latest).items.find((it) => it.id === id);
+    if (!item || !item.guestId) return;
+    if (await guarded(() => app.store.release(id))) toast(`${item.label} and ${item.guestName || "their name"} are back on the wheels.`);
+  }
+
+  async function removeItem(id) {
+    if (app.busy || !app.isHost) return;
+    const item = derive(app.latest).items.find((it) => it.id === id);
+    if (!item || item.guestId) return;
+    if (await guarded(() => app.store.removeItem(id))) toast(`${item.label} is off the menu.`);
+  }
+
+  async function addItem() {
+    const label = cleanText($("#item-label").value, 40);
+    if (!label) { $("#item-label").focus(); return; }
+    const emoji = cleanText($("#item-emoji").value, 4);
+    const category = CAT[$("#item-cat").value] ? $("#item-cat").value : "extras";
+    const d = derive(app.latest);
+    if (d.items.some((it) => it.label.toLocaleLowerCase() === label.toLocaleLowerCase())) { toast(`${label} is already on the menu.`); return; }
+    const ok = await guarded(() => app.store.addItem({ label, emoji, category }));
+    if (!ok) return;
+    $("#item-label").value = "";
+    $("#item-emoji").value = "";
+    toast(`${label} is on the wheel.`);
+  }
+
+  async function clearAll() {
+    const ids = derive(app.latest).items.filter((it) => it.guestId).map((it) => it.id);
+    $("#clear-confirm").hidden = true;
+    if (!ids.length) { render(); return; }
+    if (await guarded(() => app.store.clearAll())) toast("All picks cleared. Everyone's back on the wheels.");
+    render();
+  }
+
+  function lineupText() {
+    const d = derive(app.latest);
+    const claimed = d.items.length - d.open.length;
+    const lines = ["🏖️ *BEACH CHOP: WHO'S BRINGING WHAT*", `_${claimed} of ${d.items.length} claimed_`, ""];
+    let number = 0;
+    CATEGORIES.forEach((cat) => {
+      const rows = d.items.filter((it) => catOf(it) === cat.key);
+      if (!rows.length) return;
+      lines.push(`*${cat.label}*`);
+      rows.forEach((it) => {
+        number += 1;
+        lines.push(`${number}. ${it.emoji ? it.emoji + " " : ""}${it.label}: ${it.guestId ? (it.guestName || "Someone") : "_open_"}`);
+      });
+      lines.push("");
+    });
+    lines.push("One person, one thing. See you at the beach 🌊");
+    return lines.join("\n");
+  }
+
+  function copyLineup() {
+    const text = lineupText();
+    const fallback = () => {
+      $("#copy-text").value = text;
+      $("#copy-sheet").hidden = false;
+      $("#copy-text").focus();
+      $("#copy-text").select();
+    };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => toast("Lineup copied. Paste it in the WhatsApp group."), fallback);
+      } else {
+        fallback();
+      }
+    } catch (e) {
+      fallback();
+    }
+  }
+
+  /* ---------- Wiring ---------- */
+
+  function bindEvents() {
+    const legend = $("#legend");
+    const select = $("#item-cat");
+    CATEGORIES.forEach((cat) => {
+      const li = el("li");
+      const sw = el("span", "sw");
+      sw.style.setProperty("--c", cat.colors[1]);
+      li.append(sw, document.createTextNode(cat.label));
+      legend.append(li);
+      const option = el("option", "", cat.label);
+      option.value = cat.key;
+      select.append(option);
+    });
+
+    $("#spin-names").addEventListener("click", spinNames);
+    $("#spin-food").addEventListener("click", spinFood);
+    $("#change-guest").addEventListener("click", () => { if (!app.busy) { app.current = null; render(); } });
+    $("#guest-chips").addEventListener("click", (event) => {
+      const pick = event.target.closest("[data-pick]");
+      const drop = event.target.closest("[data-drop]");
+      if (pick) selectGuest(pick.dataset.pick);
+      else if (drop) removeGuest(drop.dataset.drop);
+    });
+    $("#guest-form").addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (app.busy || !app.canWrite) return;
+      const input = $("#guest-input");
+      const raw = input.value;
+      input.value = "";
+      addNames(raw);
+    });
+    $("#board").addEventListener("click", (event) => {
+      const release = event.target.closest("[data-release]");
+      const remove = event.target.closest("[data-remove]");
+      if (release) releaseItem(release.dataset.release);
+      else if (remove) removeItem(remove.dataset.remove);
+    });
+    $("#item-form").addEventListener("submit", (event) => { event.preventDefault(); if (!app.busy) addItem(); });
+    $("#clear-btn").addEventListener("click", () => {
+      $("#clear-confirm").hidden = false;
+      $("#clear-btn").hidden = true;
+      $("#clear-no").focus();
+    });
+    $("#clear-no").addEventListener("click", () => { $("#clear-confirm").hidden = true; render(); $("#clear-btn").focus(); });
+    $("#clear-yes").addEventListener("click", () => { if (!app.busy) clearAll(); });
+    $("#copy-btn").addEventListener("click", copyLineup);
+    $("#copy-close").addEventListener("click", () => { $("#copy-sheet").hidden = true; $("#copy-btn").focus(); });
+    $("#reveal-done").addEventListener("click", closeReveal);
+    $("#you-reset").addEventListener("click", () => { app.meId = null; writeMe(null); render(); });
+    document.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape") return;
+      if (!$("#reveal").hidden) closeReveal();
+      else if (!$("#copy-sheet").hidden) { $("#copy-sheet").hidden = true; $("#copy-btn").focus(); }
+    });
+
+    const redraw = () => { nameWheel.refresh(); foodWheel.refresh(); };
+    const dark = window.matchMedia("(prefers-color-scheme: dark)");
+    if (dark.addEventListener) dark.addEventListener("change", redraw);
+    new MutationObserver(redraw).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
+  }
+
+  // The host opens the site once with #host=KEY; the key is kept on that device and removed from the address bar.
+  function hostKeyFromLink() {
+    const match = location.hash.match(/^#host=([A-Za-z0-9_-]{16,})$/);
+    if (!match) return null;
+    history.replaceState(null, "", location.pathname + location.search);
+    try { localStorage.setItem(HOST_KEY, match[1]); } catch (e) { /* host tools last for this visit only */ }
+    return match[1];
+  }
+  function savedHostKey() { try { return localStorage.getItem(HOST_KEY); } catch (e) { return null; } }
+  function forgetHostKey() { try { localStorage.removeItem(HOST_KEY); } catch (e) { /* nothing saved */ } }
+
+  function onStatus(err) {
+    const setup = !!err && err.code === "not_configured";
+    const lost = !!err && !setup;
+    if (setup === app.setupNeeded && lost === app.connLost) return;
+    app.setupNeeded = setup;
+    app.connLost = lost;
+    render();
+  }
+
+  async function boot() {
+    bindEvents();
+    render();
+    app.canWrite = true;
+    if (location.protocol === "file:") {
+      app.mode = "local";
+      app.isHost = true;
+      app.store = createLocalStore();
+      app.store.subscribe(onSnap);
+      return;
+    }
+    app.mode = "shared";
+    const fromLink = hostKeyFromLink();
+    const key = fromLink || savedHostKey();
+    app.store = createApiStore(onStatus);
+    app.store.subscribe(onSnap);
+    if (!key) return;
+    if (await app.store.checkHost(key)) {
+      app.hostKey = key;
+      app.isHost = true;
+      if (fromLink) toast("Host tools are on for this device.");
+    } else {
+      forgetHostKey();
+      if (fromLink) toast("That host link didn't work.");
+    }
+    render();
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
