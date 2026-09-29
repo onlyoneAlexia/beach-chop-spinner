@@ -1,5 +1,8 @@
 {
   "name": "beach-chop-spinner",
   "private": true,
-  "description": "Beach potluck spinner: spin a name, spin the food, and each pick leaves the wheel."
+  "description": "Beach potluck spinner: spin a name, spin the food, and each pick leaves the wheel.",
+  "dependencies": {
+    "redis": "^4.7.1"
+  }
 }

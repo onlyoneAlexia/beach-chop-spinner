@@ -84,15 +84,29 @@ class ApiError extends Error {
   }
 }
 
+// Upstash's REST API is preferred; any plain Redis connection string (redis:// or rediss://) works too.
 function redisConfig() {
   const env = process.env;
   const names = Object.keys(env);
-  const urlKey = ["KV_REST_API_URL", "UPSTASH_REDIS_REST_URL"].find((k) => env[k])
+  const restKey = ["KV_REST_API_URL", "UPSTASH_REDIS_REST_URL"].find((k) => env[k])
     || names.find((k) => /(^|_)(KV_REST_API_URL|UPSTASH_REDIS_REST_URL)$/.test(k) && env[k]);
-  if (!urlKey) return null;
-  const token = env[urlKey.replace(/URL$/, "TOKEN")];
-  if (!token) return null;
-  return { url: env[urlKey].replace(/\/+$/, ""), token };
+  const token = restKey && env[restKey.replace(/URL$/, "TOKEN")];
+  if (restKey && token) return { kind: "rest", url: env[restKey].replace(/\/+$/, ""), token };
+  const tcpKey = ["REDIS_URL", "KV_URL", "STORAGE_URL"].find((k) => /^rediss?:\/\//.test(env[k] || ""))
+    || names.find((k) => /_URL$/.test(k) && /^rediss?:\/\//.test(env[k] || ""));
+  if (tcpKey) return { kind: "tcp", url: env[tcpKey] };
+  return null;
+}
+
+let tcpClient = null;
+async function tcp(url) {
+  if (!tcpClient) {
+    const { createClient } = require("redis");
+    const client = createClient({ url, socket: { connectTimeout: 5000 } });
+    client.on("error", (err) => console.error("Redis connection error", err));
+    tcpClient = client.connect().then(() => client, (err) => { tcpClient = null; throw err; });
+  }
+  return tcpClient;
 }
 
 async function send(cfg, path, payload) {
@@ -107,12 +121,17 @@ async function send(cfg, path, payload) {
 }
 
 async function redis(cfg, command) {
+  if (cfg.kind === "tcp") return (await tcp(cfg.url)).sendCommand(command.map(String));
   const data = await send(cfg, "", command);
   if (data.error) throw new Error(data.error);
   return data.result;
 }
 
 async function pipeline(cfg, commands) {
+  if (cfg.kind === "tcp") {
+    const client = await tcp(cfg.url);
+    return Promise.all(commands.map((command) => client.sendCommand(command.map(String))));
+  }
   const data = await send(cfg, "/pipeline", commands);
   if (!Array.isArray(data)) throw new Error("Unexpected pipeline answer");
   return data.map((entry) => {
@@ -278,7 +297,7 @@ module.exports = async function handler(req, res) {
   if (!cfg) {
     return res.status(503).json({
       error: "not_configured",
-      message: "Connect an Upstash Redis database to this project in Vercel (Storage tab), then redeploy.",
+      message: "Connect a Redis database (Upstash or Redis) to this project in Vercel (Storage tab), then redeploy.",
     });
   }
   try {

@@ -3,13 +3,13 @@
 A potluck spinner for the beach get-together. Spin for a name, then spin for the food. Whatever lands leaves the wheel, so nobody brings the same thing.
 
 - `index.html`: the website. Guests add their name, spin, and see the full lineup.
-- `api/spinner.js`: a Vercel function that stores names and picks in Upstash Redis. Claims are atomic, so two phones spinning at once can't land on the same item. The 30-item menu is added automatically on first load.
+- `api/spinner.js`: a Vercel function that stores names and picks in Redis (Upstash REST or any `redis://` connection). Claims are atomic, so two phones spinning at once can't land on the same item. The 30-item menu is added automatically on first load.
 - `claude-artifact.html`: the claude.ai version of the same page (not deployed to Vercel).
 
 ## Deploy on Vercel
 
 1. On vercel.com, choose **Add New → Project** and import this repository. Keep the default settings and click **Deploy**.
-2. In the project, open **Storage → Create Database → Upstash for Redis** (the free plan is enough), and connect it to this project.
+2. In the project, open **Storage** and connect a Redis database: **Upstash for Redis** (free plan) or an existing Redis database from your team. Leave the variable prefix empty.
 3. Open **Deployments** and **Redeploy** the latest deployment so it picks up the database settings.
 
 ## Host tools
