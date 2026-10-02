@@ -202,6 +202,10 @@
   .host-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
   .host-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 26px; }
   .host-head p { margin: 0; color: var(--muted); font-size: 13px; font-weight: 600; }
+  .host-sub { margin: 0; font-size: 13px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; }
+  .host-block { display: grid; gap: 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .assign-form { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); align-items: end; }
+  @media (min-width: 640px) { .assign-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; } }
   .item-form { display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); align-items: end; }
   @media (min-width: 640px) { .item-form { grid-template-columns: 90px minmax(0, 1fr) 170px auto; } }
   .field { display: grid; gap: 4px; min-width: 0; font-size: 12px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
@@ -319,9 +323,20 @@
 
   <section class="host-tools" id="host-tools" aria-labelledby="host-title" hidden>
     <div class="host-head"><h2 id="host-title">Host tools</h2><p id="host-note">Only your host link shows these controls.</p></div>
+    <div class="host-block">
+      <h3 class="host-sub">Give someone a food</h3>
+      <form class="assign-form" id="assign-form" autocomplete="off">
+        <label class="field"><span>Person</span><input id="assign-name" list="assign-names" maxlength="40" placeholder="Type a name, yours too"></label>
+        <datalist id="assign-names"></datalist>
+        <label class="field"><span>Food</span><select id="assign-item"></select></label>
+        <button type="submit" class="add-btn" id="assign-btn">Give it to them</button>
+      </form>
+      <p class="fine">If they already have something, it's swapped and their old food goes back on the wheel. To give away a food someone else has, tap ↺ on it in the lineup first.</p>
+    </div>
+    <h3 class="host-sub host-block">Add to the menu</h3>
     <form class="item-form" id="item-form" autocomplete="off">
       <label class="field"><span>Emoji</span><input id="item-emoji" maxlength="8" placeholder="🍹"></label>
-      <label class="field"><span>Add to the menu</span><input id="item-label" maxlength="40" placeholder="Zobo drink"></label>
+      <label class="field"><span>Food or drink</span><input id="item-label" maxlength="40" placeholder="Zobo drink"></label>
       <label class="field"><span>Section</span><select id="item-cat"></select></label>
       <button type="submit" class="add-btn">Add item</button>
     </form>
@@ -826,6 +841,26 @@
         Object.values(data.items).forEach((it) => Object.assign(it, { guestId: null, guestName: null, claimedAt: null }));
         commit();
       },
+      async assign(name, itemId) {
+        const item = data.items[itemId];
+        if (!item) throw { code: "no_item", message: "That food isn't on the menu anymore." };
+        const key = name.toLocaleLowerCase();
+        let guestId = Object.keys(data.guests).find((id) => data.guests[id].name.toLocaleLowerCase() === key) || null;
+        if (guestId) name = data.guests[guestId].name;
+        if (item.guestId && item.guestId !== guestId) {
+          throw { code: "item_taken", message: `${item.label} is already taken by ${item.guestName || "someone"}. Tap ↺ on it in the lineup first.` };
+        }
+        if (!guestId) {
+          guestId = "g-" + (slugify(name) || randomId());
+          if (data.guests[guestId]) guestId += "-" + randomId();
+          data.guests[guestId] = { name, addedAt: Date.now() };
+        }
+        const previous = Object.keys(data.items).find((id) => id !== itemId && data.items[id].guestId === guestId) || null;
+        if (previous) Object.assign(data.items[previous], { guestId: null, guestName: null, claimedAt: null });
+        Object.assign(item, { guestId, guestName: name, claimedAt: Date.now() });
+        commit();
+        return { guestId, name, previous };
+      },
       async checkHost() { return true; },
     };
   }
@@ -888,6 +923,7 @@
       addItem(item) { return host({ type: "addItem", ...item }); },
       removeItem(id) { return host({ type: "removeItem", id }); },
       clearAll() { return host({ type: "clearAll" }); },
+      assign(name, itemId) { return host({ type: "assign", name, itemId }); },
       checkHost(key) { return call({ type: "hostCheck", hostKey: key }).then((d) => !!d.ok, () => false); },
     };
   }
@@ -1161,6 +1197,37 @@
     if (!claimed) $("#clear-confirm").hidden = true;
     $("#clear-btn").hidden = !$("#clear-confirm").hidden;
     $("#clear-question").textContent = `Clear all ${claimed} ${claimed === 1 ? "pick" : "picks"}?`;
+
+    // Rebuild the pickers only when their contents change, so a poll never resets a choice in progress.
+    const names = d.guests.map((g) => g.name);
+    const people = $("#assign-names");
+    if (people.dataset.key !== names.join("\n")) {
+      people.dataset.key = names.join("\n");
+      people.replaceChildren(...names.map((name) => { const option = el("option"); option.value = name; return option; }));
+    }
+    const select = $("#assign-item");
+    const foodKey = d.open.map((it) => `${it.id}:${it.label}`).join("|");
+    if (select.dataset.key !== foodKey) {
+      const keep = select.value;
+      select.dataset.key = foodKey;
+      const blank = el("option", "", d.open.length ? "Choose a food" : "Everything is taken");
+      blank.value = "";
+      const groups = CATEGORIES.map((cat) => {
+        const rows = d.open.filter((it) => catOf(it) === cat.key);
+        if (!rows.length) return null;
+        const group = el("optgroup");
+        group.label = cat.label;
+        rows.forEach((it) => {
+          const option = el("option", "", `${it.emoji ? it.emoji + " " : ""}${it.label}`);
+          option.value = it.id;
+          group.append(option);
+        });
+        return group;
+      }).filter(Boolean);
+      select.replaceChildren(blank, ...groups);
+      select.value = d.open.some((it) => it.id === keep) ? keep : "";
+    }
+    $("#assign-btn").disabled = app.busy || !d.open.length;
   }
 
   /* ---------- Feedback ---------- */
@@ -1384,6 +1451,22 @@
     if (await guarded(() => app.store.removeItem(id))) toast(`${item.label} is off the menu.`);
   }
 
+  async function assignFood() {
+    if (app.busy || !app.isHost) return;
+    const name = cleanText($("#assign-name").value, 40);
+    const itemId = $("#assign-item").value;
+    if (!name) { $("#assign-name").focus(); return; }
+    if (!itemId) { toast("Choose a food first."); $("#assign-item").focus(); return; }
+    let res;
+    try { res = await app.store.assign(name, itemId); } catch (err) { handleError(err); return; }
+    const d = derive(app.latest);
+    const item = d.items.find((it) => it.id === itemId);
+    const old = res.previous ? d.items.find((it) => it.id === res.previous) : null;
+    toast(`${res.name} is bringing ${item ? item.label : "it"}.${old ? ` ${old.label} is back on the wheel.` : ""}`);
+    $("#assign-name").value = "";
+    $("#assign-item").value = "";
+  }
+
   async function addItem() {
     const label = cleanText($("#item-label").value, 40);
     if (!label) { $("#item-label").focus(); return; }
@@ -1488,6 +1571,7 @@
       else if (remove) removeItem(remove.dataset.remove);
     });
     $("#item-form").addEventListener("submit", (event) => { event.preventDefault(); if (!app.busy) addItem(); });
+    $("#assign-form").addEventListener("submit", (event) => { event.preventDefault(); assignFood(); });
     $("#clear-btn").addEventListener("click", () => {
       $("#clear-confirm").hidden = false;
       $("#clear-btn").hidden = true;

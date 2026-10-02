@@ -3,7 +3,7 @@
 //
 // GET  /api/spinner            → { items, guests }
 // POST /api/spinner { type }   → addGuests | claim | hostCheck, plus host-only
-//                                 removeGuest | release | addItem | removeItem | clearAll
+//                                 assign | removeGuest | release | addItem | removeItem | clearAll
 //
 // Guests (no host key) get one name and one pick per device: their page sends a
 // random device id, and the server ties that device to the name it added or
@@ -92,6 +92,23 @@ for i = 4, #ARGV do
   end
 end
 return {'none', ''}`;
+
+// The host gives a guest one particular item. A pick the guest already had goes back
+// on the wheel; an item someone else holds is refused. The guest's phone stays locked.
+const ASSIGN_SCRIPT = `
+local guests, claims, guestClaim, items, deviceItem, guestDevice = KEYS[1], KEYS[2], KEYS[3], KEYS[4], KEYS[5], KEYS[6]
+local guestId, itemId, claim = ARGV[1], ARGV[2], ARGV[3]
+if redis.call('HEXISTS', guests, guestId) == 0 then return {'noguest', ''} end
+if redis.call('HEXISTS', items, itemId) == 0 then return {'noitem', ''} end
+local current = redis.call('HGET', guestClaim, guestId)
+if current == itemId then return {'same', ''} end
+if redis.call('HEXISTS', claims, itemId) == 1 then return {'taken', ''} end
+if current then redis.call('HDEL', claims, current) end
+redis.call('HSET', claims, itemId, claim)
+redis.call('HSET', guestClaim, guestId, itemId)
+local device = redis.call('HGET', guestDevice, guestId)
+if device then redis.call('HSET', deviceItem, device, itemId) end
+return {'ok', current or ''}`;
 
 // Removes field ARGV[1] from KEYS[1] unless KEYS[2] still ties it to a pick (then -1).
 const REMOVE_UNCLAIMED_SCRIPT = `
@@ -322,6 +339,41 @@ async function release(cfg, body) {
   return { ok: true };
 }
 
+async function assign(cfg, body) {
+  let name = clean(body.name, 40);
+  const itemId = clean(body.itemId, 80);
+  if (!name || !itemId) throw new ApiError(400, "invalid_argument", "Type a name and choose a food.");
+  const guests = Object.entries(toMap(await redis(cfg, ["HGETALL", K.guests])))
+    .map(([id, raw]) => ({ id, ...(parse(raw) || {}) }))
+    .filter((g) => g.name);
+  const known = guests.find((g) => g.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+  let guestId;
+  if (known) {
+    guestId = known.id;
+    name = known.name;
+  } else {
+    if (guests.length >= MAX_GUESTS) throw new ApiError(400, "limit", `The list is full at ${MAX_GUESTS} names.`);
+    guestId = "g-" + (slugify(name) || randomId());
+    if (guests.some((g) => g.id === guestId)) guestId += "-" + randomId();
+    await redis(cfg, ["HSETNX", K.guests, guestId, JSON.stringify({ name, addedAt: Date.now() })]);
+  }
+  const record = JSON.stringify({ guestId, guestName: name, claimedAt: Date.now() });
+  const [status, previous] = await redis(cfg, [
+    "EVAL", ASSIGN_SCRIPT, "6", K.guests, K.claims, K.guestClaim, K.items, K.deviceItem, K.guestDevice,
+    guestId, itemId, record,
+  ]);
+  if (status === "ok") return { guestId, name, previous: previous || null };
+  if (status === "same") return { guestId, name, previous: null };
+  if (status === "noitem") throw new ApiError(409, "no_item", "That food isn't on the menu anymore.");
+  if (status === "taken") {
+    const holder = parse(await redis(cfg, ["HGET", K.claims, itemId]));
+    const item = parse(await redis(cfg, ["HGET", K.items, itemId]));
+    throw new ApiError(409, "item_taken",
+      `${item ? item.label : "That food"} is already taken by ${holder ? holder.guestName : "someone"}. Tap ↺ on it in the lineup first.`);
+  }
+  throw new ApiError(409, "no_guest", "That name isn't on the list anymore. Try again.");
+}
+
 async function removeGuest(cfg, body) {
   const id = clean(body.id, 80);
   const removed = await redis(cfg, ["EVAL", REMOVE_UNCLAIMED_SCRIPT, "2", K.guests, K.guestClaim, id]);
@@ -372,7 +424,7 @@ module.exports = async function handler(req, res) {
     }
     const body = typeof req.body === "string" ? parse(req.body) || {} : req.body || {};
     const host = isHost(body.hostKey);
-    const hostOnly = ["removeGuest", "release", "addItem", "removeItem", "clearAll"];
+    const hostOnly = ["assign", "removeGuest", "release", "addItem", "removeItem", "clearAll"];
     if (hostOnly.includes(body.type) && !host) {
       throw new ApiError(403, "not_host", "Only the host can do that.");
     }
@@ -383,6 +435,8 @@ module.exports = async function handler(req, res) {
         return res.status(200).json(await claim(cfg, body, host));
       case "hostCheck":
         return res.status(200).json({ ok: host });
+      case "assign":
+        return res.status(200).json(await assign(cfg, body));
       case "removeGuest":
         return res.status(200).json(await removeGuest(cfg, body));
       case "release":
