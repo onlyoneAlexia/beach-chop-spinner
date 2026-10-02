@@ -118,7 +118,6 @@
   .you p { margin: 0; min-width: 0; }
   .you-lead { display: block; font-size: 12px; font-weight: 800; letter-spacing: 1.2px; text-transform: uppercase; color: var(--muted); }
   .you strong { font-family: var(--display); font-weight: 400; font-size: 22px; line-height: 1.1; }
-  .you-reset { flex: none; border: 0; background: none; padding: 6px; color: var(--muted); font-size: 13px; font-weight: 700; text-decoration: underline; }
 
   .notice { margin: 22px 0 0; padding: 12px 14px; border: 2px dashed var(--edge); border-radius: 12px; background: var(--surface-2); font-weight: 600; }
 
@@ -248,7 +247,6 @@
     <div class="you" id="you-card" hidden>
       <span class="you-emoji" id="you-emoji" aria-hidden="true"></span>
       <p><span class="you-lead">You're bringing</span> <strong id="you-item"></strong></p>
-      <button type="button" class="you-reset" id="you-reset">Not you?</button>
     </div>
   </div>
 </header>
@@ -273,23 +271,24 @@
       <div id="pick-current" hidden>
         <p class="eyebrow">Now picking for</p>
         <p class="current-name" id="current-name"></p>
-        <p class="hint">Spin the food wheel to see what they're bringing.</p>
-        <button type="button" class="text-btn" id="change-guest">Pick someone else</button>
+        <p class="hint" id="current-hint">Spin the food wheel to see what they're bringing.</p>
+        <button type="button" class="text-btn" id="change-guest">Wrong name? Pick again</button>
       </div>
       <div id="pick-choose">
-        <p class="eyebrow">Or tap a name</p>
-        <p class="hint" id="choose-hint">Picking for yourself? Tap your name, then spin the food wheel.</p>
+        <p class="eyebrow" id="choose-title">Find your name</p>
+        <p class="hint" id="choose-hint">Tap your name, or add it below. Then spin the food wheel.</p>
         <div class="chips" id="guest-chips"></div>
         <form class="add-form" id="guest-form" autocomplete="off">
           <label class="sr-only" for="guest-input">Add names</label>
           <input id="guest-input" name="guest" placeholder="Add your name" maxlength="600">
           <button type="submit" class="add-btn" id="guest-add">Add</button>
         </form>
-        <p class="fine">Adding a few? Separate names with commas, or paste a list.</p>
+        <p class="fine" id="choose-fine">Adding a few? Separate names with commas, or paste a list.</p>
       </div>
-      <div id="pick-readonly" hidden>
-        <p class="eyebrow">View only</p>
-        <p class="hint">You can see who's bringing what, but only people the host invited can spin. Ask the host to spin for you, or check the lineup below.</p>
+      <div id="pick-done" hidden>
+        <p class="eyebrow">You're all set</p>
+        <p class="current-name" id="done-item"></p>
+        <p class="hint">Picks are final, so this one's yours. If something really needs to change, ask the host.</p>
       </div>
     </article>
 
@@ -319,7 +318,7 @@
   </section>
 
   <section class="host-tools" id="host-tools" aria-labelledby="host-title" hidden>
-    <div class="host-head"><h2 id="host-title">Host tools</h2><p id="host-note">Only devices opened with your host link see these controls.</p></div>
+    <div class="host-head"><h2 id="host-title">Host tools</h2><p id="host-note">Only your host link shows these controls.</p></div>
     <form class="item-form" id="item-form" autocomplete="off">
       <label class="field"><span>Emoji</span><input id="item-emoji" maxlength="8" placeholder="🍹"></label>
       <label class="field"><span>Add to the menu</span><input id="item-label" maxlength="40" placeholder="Zobo drink"></label>
@@ -420,12 +419,26 @@
   const stacked = window.matchMedia("(max-width: 1079px)");
   const ME_KEY = "beach-chop-me";
   const HOST_KEY = "beach-chop-host-key";
+  const DEVICE_KEY = "beach-chop-device";
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const mod = (a, m) => ((a % m) + m) % m;
   const randomId = () => Math.random().toString(36).slice(2, 8);
 
   function readMe() { try { return localStorage.getItem(ME_KEY); } catch (e) { return null; } }
   function writeMe(id) { try { if (id) localStorage.setItem(ME_KEY, id); else localStorage.removeItem(ME_KEY); } catch (e) { /* per-device convenience only */ } }
+  // A random id for this phone. The server allows one name and one pick per device.
+  function readDevice() {
+    const fresh = () => (window.crypto && crypto.randomUUID
+      ? crypto.randomUUID().replace(/-/g, "")
+      : Math.random().toString(36).slice(2) + Date.now().toString(36));
+    try {
+      let id = localStorage.getItem(DEVICE_KEY);
+      if (!id || !/^[A-Za-z0-9_-]{8,64}$/.test(id)) { id = fresh(); localStorage.setItem(DEVICE_KEY, id); }
+      return id;
+    } catch (e) {
+      return fresh();
+    }
+  }
 
   function slugify(text) {
     return text.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase()
@@ -836,7 +849,7 @@
       }
       let data = null;
       try { data = await response.json(); } catch (e) { data = null; }
-      if (!response.ok) throw { code: (data && data.error) || "unavailable", message: (data && data.message) || "" };
+      if (!response.ok) throw { ...(data || {}), code: (data && data.error) || "unavailable", message: (data && data.message) || "" };
       return data || {};
     }
 
@@ -864,9 +877,9 @@
 
     return {
       subscribe(fn) { listeners.add(fn); fn(snap); refresh(); poll(); },
-      addGuests(names) { return write({ type: "addGuests", names }); },
+      addGuests(names) { return write({ type: "addGuests", names, device: app.deviceId, hostKey: app.hostKey }); },
       claim(guest, candidateIds) {
-        const result = call({ type: "claim", guestId: guest.id, candidates: candidateIds });
+        const result = call({ type: "claim", guestId: guest.id, candidates: candidateIds, device: app.deviceId, hostKey: app.hostKey });
         result.then(fresh, fresh);
         return result;
       },
@@ -892,9 +905,9 @@
     latest: { ready: false, guests: [], items: [] },
     view: { ready: false, guests: [], items: [] },
     busy: false,
-    current: null, // { id, name, via: "spin" | "chip" }
+    current: null, // { id, name, via: "spin" | "chip" | "me" }
     meId: readMe(),
-    autoPicked: false,
+    deviceId: readDevice(),
   };
 
   const nameWheel = new Wheel($("#name-wheel"), $("#name-pointer"), "names");
@@ -916,6 +929,13 @@
     return { items, guests, waiting, open, claimedBy };
   }
 
+  // On the shared site, anyone without the host link is a guest: one name, one final pick.
+  function guestState(d) {
+    if (app.isHost || app.mode !== "shared") return { guest: false, me: null, picked: null };
+    const me = app.meId ? d.guests.find((g) => g.id === app.meId) || null : null;
+    return { guest: true, me, picked: me ? d.claimedBy.get(me.id) || null : null };
+  }
+
   function onSnap(snap) {
     app.latest = snap;
     if (!app.busy) { app.view = snap; render(); }
@@ -930,11 +950,8 @@
       if (!guest || d.claimedBy.has(guest.id)) app.current = null;
       else app.current.name = guest.name;
     }
-    if (!app.autoPicked && app.view.ready && app.mode === "shared") {
-      app.autoPicked = true;
-      const me = !app.isHost && app.canWrite && d.waiting.find((g) => g.id === app.meId);
-      if (me && !app.current) app.current = { id: me.id, name: me.name, via: "chip" };
-    }
+    const gs = guestState(d);
+    if (gs.me && !gs.picked && !app.busy) app.current = { id: gs.me.id, name: gs.me.name, via: "me" };
     renderNotice();
     renderHero(d);
     renderStage(d);
@@ -979,7 +996,6 @@
   function renderStage(d) {
     $("#stage").hidden = false;
     const ready = app.view.ready;
-    const readOnly = app.mode === "shared" && !app.canWrite;
 
     const nameEntries = d.waiting
       .filter((g) => !app.current || g.id !== app.current.id)
@@ -1008,28 +1024,43 @@
     $("#name-wheel").setAttribute("aria-label", `Name wheel with ${nameEntries.length} ${nameEntries.length === 1 ? "name" : "names"}`);
     $("#food-wheel").setAttribute("aria-label", `Food wheel with ${foodEntries.length} ${foodEntries.length === 1 ? "item" : "items"} left`);
 
+    const gs = guestState(d);
+    const locked = gs.guest && !!gs.picked; // a guest whose pick is in: nothing left to do
+    const bound = gs.guest && !!gs.me; // a guest whose phone already has their name
+
+    // Only the host spins the name wheel; guests spin for themselves.
     const spinNamesBtn = $("#spin-names");
-    spinNamesBtn.hidden = readOnly;
+    spinNamesBtn.hidden = gs.guest;
     spinNamesBtn.disabled = app.busy || !ready || !app.canWrite || !nameEntries.length;
     spinNamesBtn.textContent = app.current ? "Spin again" : "Spin the names";
 
     const spinFoodBtn = $("#spin-food");
-    spinFoodBtn.hidden = readOnly;
+    spinFoodBtn.hidden = locked;
     spinFoodBtn.disabled = app.busy || !ready || !app.canWrite || !app.current || !foodEntries.length;
-    spinFoodBtn.textContent = !app.current ? "Pick a name first"
+    spinFoodBtn.textContent = !app.current ? (gs.guest ? "Add your name first" : "Pick a name first")
       : !foodEntries.length ? "Nothing left to spin"
       : `Spin for ${app.current.name}`;
 
-    $("#pick-readonly").hidden = !readOnly;
-    $("#pick-current").hidden = readOnly || !app.current;
-    $("#pick-choose").hidden = readOnly || !!app.current;
+    $("#pick-done").hidden = !locked;
+    if (locked) $("#done-item").textContent = `${gs.picked.emoji ? gs.picked.emoji + " " : ""}${gs.picked.label}`;
+    $("#pick-current").hidden = locked || !app.current;
+    $("#pick-choose").hidden = locked || !!app.current;
+    $("#change-guest").hidden = bound;
     $("#change-guest").disabled = app.busy;
     if (app.current) $("#current-name").textContent = app.current.name;
+    $("#current-hint").textContent = gs.guest
+      ? "Spin the food wheel. Whatever it lands on is yours, and it can't be changed."
+      : "Spin the food wheel to see what they're bringing.";
 
-    $("#choose-hint").textContent = ready && !d.guests.length
-      ? (app.isHost ? "Start by adding names. Paste the whole group list at once if you like." : "Add your name to get on the wheel.")
-      : "Picking for yourself? Tap your name, then spin the food wheel.";
-    $("#guest-input").placeholder = app.isHost ? "Add names, or paste a list" : "Add your name";
+    $("#choose-title").textContent = gs.guest ? "Find your name" : "Or tap a name";
+    $("#choose-hint").textContent = gs.guest
+      ? "Tap your name if it's here, or add it below. Then spin the food wheel."
+      : ready && !d.guests.length
+        ? "Start by adding names. Paste the whole group list at once if you like."
+        : "Tap a name to pick for them, or spin the names.";
+    $("#choose-fine").hidden = gs.guest;
+    $("#guest-input").placeholder = gs.guest ? "Add your name" : "Add names, or paste a list";
+    $("#guest-input").maxLength = gs.guest ? 40 : 600;
     $("#guest-add").disabled = app.busy || !ready;
 
     const chips = $("#guest-chips");
@@ -1124,7 +1155,7 @@
     const show = app.isHost && app.canWrite;
     $("#host-tools").hidden = !show;
     if (!show) return;
-    $("#host-note").textContent = app.mode === "local" ? "Everything here saves on this device." : "Only devices opened with your host link see these controls.";
+    $("#host-note").textContent = app.mode === "local" ? "Everything here saves on this device." : "Only your host link shows these controls.";
     const claimed = d.items.filter((it) => it.guestId).length;
     $("#clear-btn").disabled = app.busy || !claimed;
     if (!claimed) $("#clear-confirm").hidden = true;
@@ -1245,17 +1276,26 @@
     const entries = foodWheel.entries.slice();
     if (!entries.length) return;
     const guest = { id: app.current.id, name: app.current.name };
-    const via = app.current.via;
+    const asGuest = guestState(derive(app.view)).guest;
     startSpin();
     const claim = app.store.claim(guest, shuffle(entries.map((e) => e.id)));
     await foodWheel.spin(claim.then((res) => (res && res.itemId && !res.already ? res.itemId : null)));
     let res;
-    try { res = await claim; } catch (err) { finishSpin(); handleError(err); return; }
+    try {
+      res = await claim;
+    } catch (err) {
+      // The server knows which name this phone belongs to; follow it.
+      if (err && err.code === "not_yours" && err.guestId) { app.meId = err.guestId; writeMe(err.guestId); }
+      app.current = null;
+      finishSpin();
+      handleError(err);
+      return;
+    }
     if (res.already) { app.current = null; finishSpin(); toast(`${guest.name} already has something to bring. Check the lineup.`); return; }
     if (!res.itemId) { finishSpin(); toast("Everything on the menu is taken. Ask the host to add more."); return; }
     const entry = entries.find((e) => e.id === res.itemId);
     foodWheel.highlight(res.itemId);
-    if (app.mode === "shared" && !app.isHost && via === "chip") { app.meId = guest.id; writeMe(guest.id); }
+    if (asGuest) { app.meId = guest.id; writeMe(guest.id); }
     app.current = null;
     await wait(reduceMotion.matches ? 150 : 550);
     openReveal(guest.name, entry ? entry.item : null);
@@ -1280,7 +1320,9 @@
 
   function selectGuest(id) {
     if (app.busy || !app.canWrite) return;
-    const guest = derive(app.view).waiting.find((g) => g.id === id);
+    const d = derive(app.view);
+    if (guestState(d).me) return; // this phone already belongs to a name
+    const guest = d.waiting.find((g) => g.id === id);
     if (!guest) return;
     app.current = { id: guest.id, name: guest.name, via: "chip" };
     render();
@@ -1290,21 +1332,34 @@
   async function addNames(raw) {
     const names = splitNames(raw).slice(0, 50);
     if (!names.length) return;
+    const asGuest = guestState(derive(app.latest)).guest;
+    if (asGuest && names.length > 1) { toast("Add just your own name."); return; }
     let result;
-    try { result = await app.store.addGuests(names); } catch (err) { handleError(err); return; }
+    try {
+      result = await app.store.addGuests(names);
+    } catch (err) {
+      if (err && err.code === "already_added" && err.guestId) { app.meId = err.guestId; writeMe(err.guestId); render(); }
+      handleError(err);
+      return;
+    }
     const added = result.added || [];
     const dupes = result.dupes || [];
     const d = derive(app.latest);
-    if (added.length === 1) toast(`${added[0].name} is on the wheel.`);
-    else if (added.length > 1) toast(`${added.length} names added to the wheel.`);
-    else if (dupes.length) toast(dupes.length === 1 ? `${dupes[0].name} is already on the list.` : "Those names are already on the list.");
-    // A guest adding just themselves is ready to spin straight away.
-    const self = added[0] || (dupes.length === 1 ? dupes[0] : null);
-    if (names.length === 1 && self && !app.isHost && app.mode === "shared" && !d.claimedBy.has(self.id)) {
-      app.current = { id: self.id, name: self.name, via: "chip" };
+    if (asGuest && added.length) {
+      // This phone now belongs to that name, and can only spin for it.
+      app.meId = added[0].id;
+      writeMe(added[0].id);
+      toast(`${added[0].name} is on the wheel. Now spin the food.`);
       render();
       bringIntoView("#food-panel");
+      return;
     }
+    if (added.length === 1) toast(`${added[0].name} is on the wheel.`);
+    else if (added.length > 1) toast(`${added.length} names added to the wheel.`);
+    else if (dupes.length === 1) {
+      const pick = d.claimedBy.get(dupes[0].id);
+      toast(pick ? `${dupes[0].name} already picked ${pick.label}.` : `${dupes[0].name} is already on the list.${asGuest ? " Tap it if that's you." : ""}`);
+    } else if (dupes.length) toast("Those names are already on the list.");
   }
 
   async function removeGuest(id) {
@@ -1407,7 +1462,11 @@
 
     $("#spin-names").addEventListener("click", spinNames);
     $("#spin-food").addEventListener("click", spinFood);
-    $("#change-guest").addEventListener("click", () => { if (!app.busy) { app.current = null; render(); } });
+    $("#change-guest").addEventListener("click", () => {
+      if (app.busy || guestState(derive(app.view)).me) return;
+      app.current = null;
+      render();
+    });
     $("#guest-chips").addEventListener("click", (event) => {
       const pick = event.target.closest("[data-pick]");
       const drop = event.target.closest("[data-drop]");
@@ -1439,7 +1498,6 @@
     $("#copy-btn").addEventListener("click", copyLineup);
     $("#copy-close").addEventListener("click", () => { $("#copy-sheet").hidden = true; $("#copy-btn").focus(); });
     $("#reveal-done").addEventListener("click", closeReveal);
-    $("#you-reset").addEventListener("click", () => { app.meId = null; writeMe(null); render(); });
     document.addEventListener("keydown", (event) => {
       if (event.key !== "Escape") return;
       if (!$("#reveal").hidden) closeReveal();
@@ -1453,16 +1511,17 @@
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
   }
 
-  // The host opens the site once with #host=KEY; the key is kept on that device and removed from the address bar.
+  // Host tools come only from the host link (#host=KEY). The key is kept for this browser tab only
+  // and removed from the address bar, so the normal link always opens the guest view.
   function hostKeyFromLink() {
     const match = location.hash.match(/^#host=([A-Za-z0-9_-]{16,})$/);
     if (!match) return null;
     history.replaceState(null, "", location.pathname + location.search);
-    try { localStorage.setItem(HOST_KEY, match[1]); } catch (e) { /* host tools last for this visit only */ }
+    try { sessionStorage.setItem(HOST_KEY, match[1]); } catch (e) { /* host tools last for this page view only */ }
     return match[1];
   }
-  function savedHostKey() { try { return localStorage.getItem(HOST_KEY); } catch (e) { return null; } }
-  function forgetHostKey() { try { localStorage.removeItem(HOST_KEY); } catch (e) { /* nothing saved */ } }
+  function savedHostKey() { try { return sessionStorage.getItem(HOST_KEY); } catch (e) { return null; } }
+  function forgetHostKey() { try { sessionStorage.removeItem(HOST_KEY); } catch (e) { /* nothing saved */ } }
 
   function onStatus(err) {
     const setup = !!err && err.code === "not_configured";
@@ -1485,20 +1544,21 @@
       return;
     }
     app.mode = "shared";
+    try { localStorage.removeItem(HOST_KEY); } catch (e) { /* older versions kept host mode on the device */ }
     const fromLink = hostKeyFromLink();
     const key = fromLink || savedHostKey();
     app.store = createApiStore(onStatus);
-    app.store.subscribe(onSnap);
-    if (!key) return;
-    if (await app.store.checkHost(key)) {
-      app.hostKey = key;
-      app.isHost = true;
-      if (fromLink) toast("Host tools are on for this device.");
-    } else {
-      forgetHostKey();
-      if (fromLink) toast("That host link didn't work.");
+    if (key) {
+      if (await app.store.checkHost(key)) {
+        app.hostKey = key;
+        app.isHost = true;
+        if (fromLink) toast("Host tools are on in this tab.");
+      } else {
+        forgetHostKey();
+        if (fromLink) toast("That host link didn't work.");
+      }
     }
-    render();
+    app.store.subscribe(onSnap);
   }
 
   boot();

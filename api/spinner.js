@@ -4,6 +4,10 @@
 // GET  /api/spinner            → { items, guests }
 // POST /api/spinner { type }   → addGuests | claim | hostCheck, plus host-only
 //                                 removeGuest | release | addItem | removeItem | clearAll
+//
+// Guests (no host key) get one name and one pick per device: their page sends a
+// random device id, and the server ties that device to the name it added or
+// spun for. Picks are final unless the host releases them.
 const crypto = require("crypto");
 
 // SHA-256 of the host key. The key itself is only in the host's link (#host=...).
@@ -15,6 +19,9 @@ const K = {
   claims: "bc:claims",
   guests: "bc:guests",
   guestClaim: "bc:guestclaim",
+  deviceGuest: "bc:deviceguest", // device → the name it belongs to
+  deviceItem: "bc:deviceitem", // device → the item it picked
+  guestDevice: "bc:guestdevice", // name → the device that owns it
   seeded: "bc:seeded",
 };
 const CATEGORIES = ["main", "chops", "fresh", "drinks", "extras"];
@@ -55,17 +62,32 @@ const MENU = [
 
 // First come, first served: the guest must exist and have no item yet, and the
 // first candidate that is still on the menu and unclaimed becomes theirs.
+// A guest device (ARGV[3]; empty for the host) gets one pick, only for its own name.
 const CLAIM_SCRIPT = `
 local guests, claims, guestClaim, items = KEYS[1], KEYS[2], KEYS[3], KEYS[4]
-local guestId, claim = ARGV[1], ARGV[2]
+local deviceGuest, deviceItem, guestDevice = KEYS[5], KEYS[6], KEYS[7]
+local guestId, claim, device = ARGV[1], ARGV[2], ARGV[3]
 if redis.call('HEXISTS', guests, guestId) == 0 then return {'noguest', ''} end
 local existing = redis.call('HGET', guestClaim, guestId)
 if existing then return {'already', existing} end
-for i = 3, #ARGV do
+if device ~= '' then
+  local picked = redis.call('HGET', deviceItem, device)
+  if picked then return {'devicedone', picked} end
+  local mine = redis.call('HGET', deviceGuest, device)
+  if mine and mine ~= guestId then return {'notyours', mine} end
+  local owner = redis.call('HGET', guestDevice, guestId)
+  if owner and owner ~= device then return {'taken', ''} end
+end
+for i = 4, #ARGV do
   local id = ARGV[i]
   if redis.call('HEXISTS', items, id) == 1 and redis.call('HEXISTS', claims, id) == 0 then
     redis.call('HSET', claims, id, claim)
     redis.call('HSET', guestClaim, guestId, id)
+    if device ~= '' then
+      redis.call('HSET', deviceGuest, device, guestId)
+      redis.call('HSET', deviceItem, device, id)
+      redis.call('HSET', guestDevice, guestId, device)
+    end
     return {'ok', id}
   end
 end
@@ -77,12 +99,15 @@ if redis.call('HEXISTS', KEYS[2], ARGV[1]) == 1 then return -1 end
 return redis.call('HDEL', KEYS[1], ARGV[1])`;
 
 class ApiError extends Error {
-  constructor(status, code, message) {
+  constructor(status, code, message, extra) {
     super(message);
     this.status = status;
     this.code = code;
+    this.extra = extra || {};
   }
 }
+
+const FINAL = "Picks are final. Ask the host if something needs to change.";
 
 // Upstash's REST API is preferred; any plain Redis connection string (redis:// or rediss://) works too.
 function redisConfig() {
@@ -218,9 +243,21 @@ async function readState(cfg) {
   };
 }
 
-async function addGuests(cfg, body) {
+function deviceOf(body) {
+  const device = clean(body.device, 64);
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(device)) throw new ApiError(400, "invalid_argument", "Reload the page and try again.");
+  return device;
+}
+
+async function addGuests(cfg, body, host) {
   const names = Array.isArray(body.names) ? body.names.map((n) => clean(n, 40)).filter(Boolean).slice(0, 50) : [];
   if (!names.length) throw new ApiError(400, "invalid_argument", "Type a name first.");
+  const device = host ? "" : deviceOf(body);
+  if (!host) {
+    if (names.length > 1) throw new ApiError(400, "one_name", "Add just your own name.");
+    const mine = await redis(cfg, ["HGET", K.deviceGuest, device]);
+    if (mine) throw new ApiError(409, "already_added", "You've already added your name on this phone.", { guestId: mine });
+  }
   const existing = Object.entries(toMap(await redis(cfg, ["HGETALL", K.guests])))
     .map(([id, raw]) => ({ id, ...(parse(raw) || {}) }))
     .filter((g) => g.name);
@@ -240,10 +277,14 @@ async function addGuests(cfg, body) {
     ids.add(id);
     byName.set(name.toLocaleLowerCase(), { id, name });
   }
+  if (device && added.length) {
+    await pipeline(cfg, [["HSET", K.deviceGuest, device, added[0].id], ["HSET", K.guestDevice, added[0].id, device]]);
+  }
   return { added, dupes };
 }
 
-async function claim(cfg, body) {
+async function claim(cfg, body, host) {
+  const device = host ? "" : deviceOf(body);
   const guestId = clean(body.guestId, 80);
   const candidates = Array.isArray(body.candidates)
     ? body.candidates.map((c) => clean(c, 80)).filter(Boolean).slice(0, MAX_ITEMS)
@@ -256,20 +297,40 @@ async function claim(cfg, body) {
     [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
   }
   const record = JSON.stringify({ guestId, guestName: guest.name, claimedAt: Date.now() });
-  const [status, itemId] = await redis(cfg, [
-    "EVAL", CLAIM_SCRIPT, "4", K.guests, K.claims, K.guestClaim, K.items, guestId, record, ...candidates,
+  const [status, value] = await redis(cfg, [
+    "EVAL", CLAIM_SCRIPT, "7", K.guests, K.claims, K.guestClaim, K.items, K.deviceGuest, K.deviceItem, K.guestDevice,
+    guestId, record, device, ...candidates,
   ]);
-  if (status === "ok") return { itemId };
-  if (status === "already") return { already: true, itemId };
+  if (status === "ok") return { itemId: value };
+  if (status === "already") return { already: true, itemId: value };
   if (status === "noguest") throw new ApiError(409, "no_guest", "That name isn't on the list anymore. Pick it again.");
+  if (status === "devicedone") throw new ApiError(409, "already_picked", `You've already picked on this phone. ${FINAL}`);
+  if (status === "notyours") throw new ApiError(409, "not_yours", "This phone can only spin for the name it added.", { guestId: value });
+  if (status === "taken") throw new ApiError(409, "name_taken", `${guest.name} is already being used on someone else's phone. Pick your own name.`);
   return { itemId: null };
 }
 
+// Puts a pick back: the food returns to the wheel, and that person's phone may spin again.
 async function release(cfg, body) {
   const id = clean(body.id, 80);
   const record = parse(await redis(cfg, ["HGET", K.claims, id]));
   if (!record) return { ok: true };
-  await pipeline(cfg, [["HDEL", K.claims, id], ["HDEL", K.guestClaim, record.guestId]]);
+  const device = await redis(cfg, ["HGET", K.guestDevice, record.guestId]);
+  const commands = [["HDEL", K.claims, id], ["HDEL", K.guestClaim, record.guestId]];
+  if (device) commands.push(["HDEL", K.deviceItem, device]);
+  await pipeline(cfg, commands);
+  return { ok: true };
+}
+
+async function removeGuest(cfg, body) {
+  const id = clean(body.id, 80);
+  const removed = await redis(cfg, ["EVAL", REMOVE_UNCLAIMED_SCRIPT, "2", K.guests, K.guestClaim, id]);
+  if (removed === -1) throw new ApiError(409, "invalid_argument", "That person already has a pick. Put it back on the wheel first.");
+  // Free the phone that added this name, so it can add the right one.
+  const device = await redis(cfg, ["HGET", K.guestDevice, id]);
+  if (device) {
+    await pipeline(cfg, [["HDEL", K.guestDevice, id], ["HDEL", K.deviceGuest, device], ["HDEL", K.deviceItem, device]]);
+  }
   return { ok: true };
 }
 
@@ -310,22 +371,20 @@ module.exports = async function handler(req, res) {
       return res.status(405).json({ error: "method_not_allowed", message: "Use GET or POST." });
     }
     const body = typeof req.body === "string" ? parse(req.body) || {} : req.body || {};
+    const host = isHost(body.hostKey);
     const hostOnly = ["removeGuest", "release", "addItem", "removeItem", "clearAll"];
-    if (hostOnly.includes(body.type) && !isHost(body.hostKey)) {
+    if (hostOnly.includes(body.type) && !host) {
       throw new ApiError(403, "not_host", "Only the host can do that.");
     }
     switch (body.type) {
       case "addGuests":
-        return res.status(200).json(await addGuests(cfg, body));
+        return res.status(200).json(await addGuests(cfg, body, host));
       case "claim":
-        return res.status(200).json(await claim(cfg, body));
+        return res.status(200).json(await claim(cfg, body, host));
       case "hostCheck":
-        return res.status(200).json({ ok: isHost(body.hostKey) });
-      case "removeGuest": {
-        const removed = await redis(cfg, ["EVAL", REMOVE_UNCLAIMED_SCRIPT, "2", K.guests, K.guestClaim, clean(body.id, 80)]);
-        if (removed === -1) throw new ApiError(409, "invalid_argument", "That person already has a pick. Put it back on the wheel first.");
-        return res.status(200).json({ ok: true });
-      }
+        return res.status(200).json({ ok: host });
+      case "removeGuest":
+        return res.status(200).json(await removeGuest(cfg, body));
       case "release":
         return res.status(200).json(await release(cfg, body));
       case "addItem":
@@ -336,13 +395,15 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ ok: true });
       }
       case "clearAll":
-        await pipeline(cfg, [["DEL", K.claims], ["DEL", K.guestClaim]]);
+        await pipeline(cfg, [["DEL", K.claims], ["DEL", K.guestClaim], ["DEL", K.deviceItem]]);
         return res.status(200).json({ ok: true });
       default:
         throw new ApiError(400, "invalid_argument", "Unknown request.");
     }
   } catch (err) {
-    if (err instanceof ApiError) return res.status(err.status).json({ error: err.code, message: err.message });
+    if (err instanceof ApiError) {
+      return res.status(err.status).json({ ...err.extra, error: err.code, message: err.message });
+    }
     console.error(err);
     return res.status(500).json({ error: "unavailable", message: "The database didn't answer. Try again in a moment." });
   }
